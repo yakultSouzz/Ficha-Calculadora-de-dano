@@ -1,0 +1,24 @@
+{
+  "name": "ficha-calculadora-de-dano",
+  "version": "1.0.0",
+  "description": "Uma calculadora que faz as contas por você , porque até somar 2+2 e difícil às vezes . Simples e rápido.",
+  "main": "index.js",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yakultSouzz/Ficha-Calculadora-de-dano.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/yakultSouzz/Ficha-Calculadora-de-dano/issues"
+  },
+  "homepage": "https://github.com/yakultSouzz/Ficha-Calculadora-de-dano#readme",
+  "devDependencies": {
+    "vitest": "^5.1.0"
+  },
+  "type": "module"
+}

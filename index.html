@@ -850,6 +850,56 @@ body.mode-rest{--mode-accent:#5b4a9c;--mode-wash:rgba(91,74,156,0.05);}
 <div class="toast" id="toast"></div>
 
 <script>
+window.onerror = function(msg, src, line, col, err){
+  try{ alert('Erro: '+msg+' ('+line+':'+col+')'); }catch(e){}
+};
+function getMod(score){ return Math.floor((score-10)/2); }
+function getProf(level){
+  if(level===undefined) level = (typeof getTotalLevel==='function') ? getTotalLevel() : 1;
+  return 2+Math.floor((level-1)/4);
+}
+function parseDice(str){
+  if(!str) return {count:1,sides:6};
+  const m=String(str).toLowerCase().match(/^(\d+)d(\d+)$/);
+  return m?{count:parseInt(m[1]),sides:parseInt(m[2])}:{count:1,sides:6};
+}
+function diceInfo(str){
+  if(!str||str==='d20') return {min:1,max:20,types:[{count:1,sides:20}]};
+  let min=0,max=0;const types=[];
+  String(str).toLowerCase().split('+').forEach(p=>{
+    const m=p.trim().match(/^(\d+)d(\d+)$/);
+    if(m){ const c=parseInt(m[1]),s=parseInt(m[2]); min+=c; max+=c*s; types.push({count:c,sides:s}); }
+  });
+  if(!types.length) return {min:1,max:20,types:[{count:1,sides:20}]};
+  return {min,max,types};
+}
+function parseDiceToMap(str){
+  const map = {};
+  if(!str) return map;
+  String(str).toLowerCase().split('+').forEach(p=>{
+    const m = p.trim().match(/^(\d+)d(\d+)$/);
+    if(m){ const c=parseInt(m[1]), s=parseInt(m[2]); map[s]=(map[s]||0)+c; }
+  });
+  return map;
+}
+function getAutoSlots(classes){
+  const cls = classes || (typeof state!=='undefined' && state.character ? state.character.classes : []);
+  const full=['mago','clérigo','clerigo','druida','bardo','feiticeiro'];
+  const half=['paladino','patrulheiro'];
+  let lvl=0;
+  (cls||[]).forEach(c=>{
+    const n=(c.name||'').toLowerCase();const l=parseInt(c.level)||0;
+    if(full.some(x=>n.includes(x))) lvl+=l;
+    else if(half.some(x=>n.includes(x))) lvl+=Math.floor(l/2);
+  });
+  const table=[[],[2],[3],[4,2],[4,3],[4,3,2],[4,3,3],[4,3,3,1],[4,3,3,2],
+    [4,3,3,3,1],[4,3,3,3,2],[4,3,3,3,2,1],[4,3,3,3,2,1],[4,3,3,3,2,1,1],
+    [4,3,3,3,2,1,1],[4,3,3,3,2,1,1,1],[4,3,3,3,2,1,1,1],[4,3,3,3,2,1,1,1,1],
+    [4,3,3,3,3,1,1,1,1],[4,3,3,3,3,2,1,1,1],[4,3,3,3,3,2,2,1,1]];
+  const arr=table[Math.min(20,Math.max(0,lvl))]||[];
+  const result={};arr.forEach((n,i)=>{result[i+1]=n;});
+  return result;
+}
 const ATTR_NAMES={str:'FOR',dex:'DES',con:'CON',int:'INT',wis:'SAB',cha:'CAR'};
 const ATTR_FULL={str:'Força',dex:'Destreza',con:'Constituição',int:'Inteligência',wis:'Sabedoria',cha:'Carisma'};
 const SKILLS={
@@ -874,7 +924,7 @@ const defaultState={
   hp:{current:66,max:66,temp:0},wildHp:{current:0,max:0},
   hitDice:{current:5,max:5},hitDieSize:12,speed:9,
   caOverride:0,caBonus:0,caWildMode:'auto',
-  attrs:{str:16,dex:13,con:20,int:8,wis:13,cha:0},
+  attrs:{str:16,dex:13,con:20,int:8,wis:13,cha:10},
   saves:{str:true,dex:false,con:true,int:false,wis:true,cha:false},
   skills:{atletismo:true,sobrevivencia:true,percepcao:true,natureza:true,intimidacao:true},
   spellcasting:{ability:'wis'},spellSlots:{},
@@ -903,7 +953,7 @@ const defaultState={
      uses:{current:1,max:1},recharge:'long'},
     {id:'feat-poisoner',name:'Envenenador',source:'Talento',
      desc:'Proficiência com kit de envenenador. Pode aplicar veneno a uma arma ou munição como ação bônus. Uma vez por turno, ao acertar com arma que cause dano perfurante ou cortante, adicione 2d8 de dano de veneno.',
-     damage:'2d8',damageType:'veneno',
+     damage:'2d8',damageType:'veneno',usedThisTurn:false,
      combat:{dice:'2d8',damageType:'veneno',attackBonus:0,damageBonus:0,active:false,oncePerTurn:true}}
   ],
   spells:[],
@@ -1021,8 +1071,6 @@ let histCurrentTab='skills';
 function save(){try{localStorage.setItem('ficha-v22',JSON.stringify(state));}catch(e){}}
 
 const getTotalLevel=()=>Math.max(1,Math.min(20,state.character.classes.reduce((s,c)=>s+(parseInt(c.level)||0),0)));
-const getProf=()=>2+Math.floor((getTotalLevel()-1)/4);
-const getMod=(score)=>Math.floor((score-10)/2);
 const getAttrMod=(k)=>getMod(state.attrs[k]);
 const getUnarmoredAC=()=>10+getAttrMod('dex')+getAttrMod('con');
 const getBeastUnarmoredAC=(b)=>10+getMod(b?.attrs?.dex??10)+getMod(b?.attrs?.con??10);
@@ -1034,11 +1082,6 @@ const isWild=()=>state.effects.find(e=>e.id==='wild')?.active;
 const getActiveWeapon=()=>state.weapons.find(w=>w.active);
 const fmtMod=(n)=>n>=0?'+'+n:''+n;
 const esc=(s)=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const parseDice=(str)=>{
-  if(!str||!String(str).trim())return null;
-  const m=String(str).toLowerCase().trim().match(/^(\d+)d(\d+)$/);
-  return m?{count:parseInt(m[1]),sides:parseInt(m[2])}:null;
-};
 function getSkillTotal(key){const s=SKILLS[key];return getAttrMod(s.attr)+(state.skills[key]?getProf():0);}
 function getSaveTotal(k){return getAttrMod(k)+(state.saves[k]?getProf():0);}
 function hasDruidLevels(){return state.character.classes.some(c=>(c.name||'').toLowerCase().includes('druida')&&parseInt(c.level)>0);}
@@ -1062,6 +1105,13 @@ function toggleCombatFeat(id){
   if(f.combat.active)showToast(`🌟 ${f.name} ativo em combate`);
   else showToast(`🌟 ${f.name} desativado`);
 }
+
+function newTurn(){
+  state.feats.forEach(f=>{ if(f.combat) f.usedThisTurn=false; });
+  save();renderAll();
+  showToast('🔄 Novo turno');
+}
+
 
 function logHistory(cat,entry){
   if(!state.history) state.history={skills:[],attacks:[],hp:[]};
@@ -1160,19 +1210,6 @@ function renderHistEntries(cat){
   }).join('');
 }
 
-function diceInfo(str){
-  if(!str||str==='d20')return{min:1,max:20,types:[{count:1,sides:20}]};
-  let min=0,max=0;const types=[];
-  String(str).toLowerCase().split('+').forEach(p=>{
-    const m=p.trim().match(/^(\d+)d(\d+)$/);
-    if(m){
-      const c=parseInt(m[1]),s=parseInt(m[2]);
-      min+=c;max+=c*s;types.push({count:c,sides:s});
-    }
-  });
-  if(!types.length)return{min:1,max:20,types:[{count:1,sides:20}]};
-  return{min,max,types};
-}
 function formatDieLabel(dieStr){
   if(dieStr==='d20')return'd20';
   const info=diceInfo(dieStr);
@@ -1397,12 +1434,26 @@ function calcTapHTML(target,mod,dieStr,isD20,label,isCrit){
     onclick="openNumpad('${target}')">?</button>`;
 }
 
+function calcSpellDamageStr(sp, isCrit){
+  if(!sp.damage) return null;
+  const d = parseDice(sp.damage);
+  if(!d) return null;
+  const count = isCrit ? d.count*2 : d.count;
+  const diceStr = `${count}d${d.sides}`;
+  const dmgMod = parseInt(sp.damageMod)||0;
+  const parts = [diceStr];
+  if(dmgMod !== 0) parts.push(fmtMod(dmgMod));
+  const damage = parts.join(' ') + (sp.damageType?' '+sp.damageType:'');
+  return {damage, diceStr, dmgMod, isCrit:!!isCrit};
+}
+
+
 function calcWeaponAttack(w, isCrit){
   const attrMod=getAttrMod(w.attr||'str');
-  const featAtkBonus=getCombatFeatAtkBonus();
+  const featAtkBonus=(typeof getCombatFeatAtkBonus==='function')?getCombatFeatAtkBonus():0;
   const toHit=getProf()+attrMod+(parseInt(w.magic)||0)+featAtkBonus;
   const rageBonus=(isRage()&&(w.attr||'str')==='str')?2:0;
-  const featDmgBonus=getCombatFeatDmgBonus();
+  const featDmgBonus=(typeof getCombatFeatDmgBonus==='function')?getCombatFeatDmgBonus():0;
   const flatBonus=attrMod+(parseInt(w.magic)||0)+(parseInt(w.flat)||0)+rageBonus+featDmgBonus;
   const parts = [];
   const diceParts = [];
@@ -1422,7 +1473,7 @@ function calcWeaponAttack(w, isCrit){
       diceParts.push(`${c}d${ed.sides}`);
     }
   }
-  const featDice = getCombatFeatDice();
+  const featDice = (typeof getCombatFeatDice==='function')?getCombatFeatDice():[];
   featDice.forEach(fd=>{
     const d = parseDice(fd.dice);
     if(d){
@@ -1441,43 +1492,19 @@ function calcWeaponAttack(w, isCrit){
   Object.keys(dm).map(Number).forEach(s => { minDmg += dm[s]; maxDmg += dm[s]*s; });
   return {toHit, damage, diceStr, flatBonus, rageBonus, featDice, featAtkBonus, featDmgBonus, minDmg, maxDmg, isCrit:!!isCrit};
 }
-function parseDiceToMap(str){
-  const map = {};
-  if(!str) return map;
-  String(str).toLowerCase().split('+').forEach(p=>{
-    const m = p.trim().match(/^(\d+)d(\d+)$/);
-    if(m){
-      const c=parseInt(m[1]), s=parseInt(m[2]);
-      map[s] = (map[s]||0) + c;
-    }
-  });
-  return map;
-}
 function calcBeastAttack(beast, atk, isCrit){
   const rageBonus = isRage()?2:0;
-  const dmgMod = (parseInt(atk.mod)||0) + rageBonus;
+  const dmgMod = getMod((beast&&beast.attrs&&beast.attrs.str)||10) + rageBonus;
   const d = parseDice(atk.die) || {count:1, sides:6};
   const count = isCrit ? d.count*2 : d.count;
   const diceStr = `${count}d${d.sides}`;
-  const damage = `${diceStr} ${fmtMod(dmgMod)} ${atk.type}`;
+  const damage = `${diceStr} ${dmgMod>=0?'+':''}${dmgMod} ${atk.type||''}`.trim();
   return {toHit: atk.mod, damage, diceStr, dmgMod, rageBonus, isCrit:!!isCrit};
-}
-function calcSpellDamageStr(sp, isCrit){
-  if(!sp.damage) return null;
-  const d = parseDice(sp.damage);
-  if(!d) return null;
-  const count = isCrit ? d.count*2 : d.count;
-  const diceStr = `${count}d${d.sides}`;
-  const dmgMod = parseInt(sp.damageMod)||0;
-  const parts = [diceStr];
-  if(dmgMod !== 0) parts.push(fmtMod(dmgMod));
-  const damage = parts.join(' ') + (sp.damageType?' '+sp.damageType:'');
-  return {damage, diceStr, dmgMod, isCrit:!!isCrit};
 }
 
 function applyDamage(amount){
   if(amount<=0)return;
-  let logEntry={type:'damage',amount:-amount,target:'human',before:state.hp.current,after:0};
+  let logEntry={type:'damage',amount:-amount,target:'human',before:state.hp.current,after:0,tempAbsorvido:0};
   if(isWild()&&state.wildHp.current>0){
     logEntry.target='wild';logEntry.before=state.wildHp.current;
     const absorbed=Math.min(state.wildHp.current,amount);
@@ -1489,16 +1516,26 @@ function applyDamage(amount){
       state.effects.find(e=>e.id==='wild').active=false;
       state.wildHp={current:0,max:0};
       if(overflow>0){
+        let rem=overflow;
+        if(state.hp.temp>0){
+          const t=Math.min(state.hp.temp,rem);
+          state.hp.temp-=t;rem-=t;logEntry.tempAbsorvido=t;
+        }
         logEntry.overflowBefore=state.hp.current;
-        state.hp.current=Math.max(0,state.hp.current-overflow);
+        state.hp.current=Math.max(0,state.hp.current-rem);
         logEntry.overflowAfter=state.hp.current;
         showToast(`🐻 ${wn} caiu! ${overflow} passou pra forma humana`);
       }else showToast(`🐻 ${wn} caiu! Forma humana intacta`);
     }else showToast(`🐻 −${amount} HP (wild: ${state.wildHp.current}/${state.wildHp.max})`);
   }else{
-    state.hp.current=Math.max(0,state.hp.current-amount);
+    let rem=amount;
+    if(state.hp.temp>0){
+      const t=Math.min(state.hp.temp,rem);
+      state.hp.temp-=t;rem-=t;logEntry.tempAbsorvido=t;
+    }
+    state.hp.current=Math.max(0,state.hp.current-rem);
     logEntry.after=state.hp.current;
-    showToast(`👤 −${amount} HP`);
+    showToast(logEntry.tempAbsorvido>0?`👤 −${amount} HP (${logEntry.tempAbsorvido} temp)`: `👤 −${amount} HP`);
   }
   logHistory('hp',logEntry);
   if(navigator.vibrate)navigator.vibrate(60);
@@ -1622,18 +1659,8 @@ function computeCasterLevel(){
   });
   return lvl;
 }
-function getAutoSlots(){
-  const table=[[],[2],[3],[4,2],[4,3],[4,3,2],[4,3,3],[4,3,3,1],[4,3,3,2],
-    [4,3,3,3,1],[4,3,3,3,2],[4,3,3,3,2,1],[4,3,3,3,2,1],[4,3,3,3,2,1,1],
-    [4,3,3,3,2,1,1],[4,3,3,3,2,1,1,1],[4,3,3,3,2,1,1,1],[4,3,3,3,2,1,1,1,1],
-    [4,3,3,3,3,1,1,1,1],[4,3,3,3,3,2,1,1,1],[4,3,3,3,3,2,2,1,1]];
-  const cl=computeCasterLevel();
-  const arr=table[Math.min(20,Math.max(0,cl))]||[];
-  const result={};arr.forEach((n,i)=>{result[i+1]=n;});
-  return result;
-}
 function getMaxSlots(){
-  const result = getAutoSlots();
+  const result = getAutoSlots(state.character.classes);
   Object.keys(state.spellSlotsOverride||{}).forEach(lvl=>{
     const v = parseInt(state.spellSlotsOverride[lvl])||0;
     if(v > 0) result[lvl] = v;
@@ -1676,7 +1703,7 @@ function toggleSlot(lvl,idx){
   state.spellSlots=cur;renderAll();save();
 }
 function openSlotsModal(){
-  const autoSlots = getAutoSlots();
+  const autoSlots = getAutoSlots(state.character.classes);
   const maxLevel = Math.min(9, Math.max(
     3,
     ...Object.keys(autoSlots).map(Number),
@@ -1713,7 +1740,7 @@ function openSlotsModal(){
     <div class="slot-grid">${rows}</div>
   `;
   openModal('✨ Controle de Espaços de Magia', html, (data)=>{
-    const autoSlotsSave = getAutoSlots();
+    const autoSlotsSave = getAutoSlots(state.character.classes);
     const newOverride = {};
     const newBonus = {};
     for(let lvl=1; lvl<=maxLevel; lvl++){
@@ -1847,15 +1874,20 @@ function openPoisonNumpad(featId){
   const info=diceInfo(feat.damage);
   openNumpadDirect({
     target:'poison-'+featId,mod:0,isD20:false,min:info.min,max:info.max,
-    dieStr:feat.damage,label:feat.name+' — '+feat.damageType
+    dieStr:feat.damage,label:feat.name+' — '+feat.damageType,
+    onConfirm:(n,total)=>{
+      if(feat.combat && feat.combat.oncePerTurn){ feat.usedThisTurn=true; save(); renderAll(); }
+    }
   });
 }
 
 function spendFeatUse(id){
-  const f=state.feats.find(x=>x.id===id);if(!f||!f.uses)return;
+  const f=state.feats.find(x=>x.id===id);
+  if(!f||!f.uses)return;
   if(f.uses.current<=0){showToast('Sem usos restantes');return;}
-  f.uses.current--;renderAll();save();
-  showToast(`${f.name}: ${f.uses.current}/${f.uses.max}`);
+  f.uses.current--;
+  save();renderAll();
+  showToast(`${f.name}: ${f.uses.current}/${f.uses.max} usos`);
 }
 function refundFeatUse(id){
   const f=state.feats.find(x=>x.id===id);if(!f||!f.uses)return;
@@ -1875,35 +1907,30 @@ function refundFeatureUse(id){
 }
 
 function getHitDieSize(){return state.hitDieSize||12;}
-function shortRest(){
-  let restored=[];
-  state.features.forEach(f=>{
-    if(f.recharge==='short'&&f.uses){
-      if(f.uses.current<f.uses.max){restored.push(f.name);f.uses.current=f.uses.max;}
-    }
-  });
-  state.feats.forEach(f=>{
-    if(f.recharge==='short'&&f.uses){
-      if(f.uses.current<f.uses.max){restored.push(f.name);f.uses.current=f.uses.max;}
-    }
-  });
-  showToast(restored.length?`☕ Descanso curto: ${restored.join(', ')}`:'☕ Descanso curto concluído');
-  renderAll();save();
+function doShortRest(){
+  state.features.forEach(f=>{if(f.recharge==='short'&&f.uses)f.uses.current=f.uses.max;});
+  state.feats.forEach(f=>{if(f.recharge==='short'&&f.uses)f.uses.current=f.uses.max;});
+  showToast('☀️ Descanso curto');
+  save();renderAll();
+}
+function shortRest(){doShortRest();}
+function doLongRest(){
+  state.hp.current=state.hp.max;
+  state.hp.temp=0;
+  state.wildHp={current:0,max:0};
+  const wild=state.effects.find(e=>e.id==='wild');if(wild)wild.active=false;
+  const rage=state.effects.find(e=>e.id==='rage');if(rage)rage.active=false;
+  const regained=Math.max(1,Math.floor(state.hitDice.max/2));
+  state.hitDice.current=Math.min(state.hitDice.max,(state.hitDice.current||0)+regained);
+  state.features.forEach(f=>{if(f.uses&&(f.recharge==='short'||f.recharge==='long'))f.uses.current=f.uses.max;});
+  state.feats.forEach(f=>{if(f.uses&&(f.recharge==='short'||f.recharge==='long'))f.uses.current=f.uses.max;});
+  state.spellSlots={};
+  showToast('🌙 Descanso longo');
+  save();renderAll();
 }
 function longRest(){
   if(!confirm('Descanso Longo?\n• HP ao máximo\n• Usos restaurados\n• Espaços restaurados\n• Metade dos DVs\n• Forma revertida'))return;
-  state.hp.current=state.hp.max;
-  state.features.forEach(f=>{if(f.uses)f.uses.current=f.uses.max;});
-  state.feats.forEach(f=>{if(f.uses)f.uses.current=f.uses.max;});
-  state.spellSlots={...getMaxSlots()};
-  const regained=Math.max(1,Math.floor(state.hitDice.max/2));
-  state.hitDice.current=Math.min(state.hitDice.max,state.hitDice.current+regained);
-  state.effects.forEach(e=>e.active=false);
-  state.feats.forEach(f=>{if(f.combat)f.combat.active=false;});
-  state.wildHp={current:0,max:0};
-  showToast('🌙 Descanso longo completo');
-  if(navigator.vibrate)navigator.vibrate([50,50,50]);
-  renderAll();save();
+  doLongRest();
 }
 
 function setSituation(sit){
@@ -2062,14 +2089,17 @@ function renderCombatFeatToggles(){
     if(f.combat.attackBonus)parts.push(fmtMod(f.combat.attackBonus)+' acerto');
     if(f.combat.damageBonus)parts.push(fmtMod(f.combat.damageBonus)+' dano');
     const label=parts.join(' + ');
-    const onceBadge=f.combat.oncePerTurn?'<span class="once-badge">1/turno</span>':'';
-    return `<button class="toggle-btn feat ${f.combat.active?'active':''}" onclick="toggleCombatFeat('${f.id}')">
+    const onceBadge=f.combat.oncePerTurn?`<span class="once-badge">1/turno${f.usedThisTurn?' • gasto':''}</span>`:'';
+    const spent=f.combat.oncePerTurn && f.usedThisTurn;
+    const style=spent?' style="opacity:0.5"':'';
+    return `<button class="toggle-btn feat ${f.combat.active?'active':''}"${style} onclick="toggleCombatFeat('${f.id}')">
       🌟 ${esc(f.name)}${label?' '+label:''}${onceBadge}
     </button>`;
   }).join('');
   return `<div class="combat-feat-section">
     <div class="combat-feat-title">🌟 Talentos em Combate<span class="hint">— toque para aplicar</span></div>
     <div class="toggles" style="padding:0;border-bottom:none;margin-bottom:0">${toggles}</div>
+    <button class="btn-action" style="margin-top:6px;font-size:11px;padding:4px 8px" onclick="newTurn()">🔄 Novo Turno</button>
   </div>`;
 }
 function renderCombat(){
@@ -2317,11 +2347,12 @@ function renderFeats(){
       if(f.combat.dice)parts.push(f.combat.dice+(f.combat.damageType?' '+f.combat.damageType:''));
       if(f.combat.attackBonus)parts.push(fmtMod(f.combat.attackBonus)+' acerto');
       if(f.combat.damageBonus)parts.push(fmtMod(f.combat.damageBonus)+' dano');
+      const once = f.combat.oncePerTurn ? ` • 1/turno${f.usedThisTurn?' (gasto)':''}` : '';
       const activeLabel=f.combat.active
         ? '<span style="color:var(--green);font-weight:800"> • ATIVO EM COMBATE</span>'
         : '<span style="color:var(--ink-dim)"> • toque no combate para ativar</span>';
-      combatInfo=`<div class="feat-combat-info ${f.combat.active?'active':''}">
-        <b>Em combate:</b> ${parts.join(' + ')}${activeLabel}
+      combatInfo=`<div class="feat-combat-info ${f.combat.active?'active':''}" style="${f.usedThisTurn?'opacity:0.6':''}">
+        <b>Em combate:</b> ${parts.join(' + ')}${once}${activeLabel}
       </div>`;
     }
     let damageBtn='';
@@ -2510,6 +2541,7 @@ function renderAll(){
 }
 
 function togglePanelKey(key){panelState[key]=!panelState[key];renderAll();}
+function collapsePanel(name){togglePanelKey(name);}
 function toggleEffect(id){
   const e=state.effects.find(x=>x.id===id);if(!e)return;
   const feat=state.features.find(f=>f.name===e.name);
@@ -2541,6 +2573,7 @@ function selectWeapon(id){
   state.weapons.forEach(w=>w.active=w.id===id);
   renderAll();save();
 }
+function toggleWeapon(id){selectWeapon(id);}
 function selectBeast(key){
   if(isWild()&&state.wildHp.current>0){
     if(!confirm(`Trocar para ${state.beasts[key].name}? Wild HP será resetado para ${state.beasts[key].hp}.`))return;
@@ -2548,6 +2581,7 @@ function selectBeast(key){
   }
   state.activeBeast=key;renderAll();save();
 }
+function setActiveBeast(key){selectBeast(key);}
 
 let modalCtx=null;
 function openModal(title,bodyHTML,onSave){
@@ -3041,6 +3075,40 @@ function showToast(msg){
   clearTimeout(toastTimer);
   toastTimer=setTimeout(()=>t.classList.remove('show','crit'),2400);
 }
+
+
+// ---- Fase 0 aliases / handlers ----
+function renderStats(){return renderStatsBar();}
+function renderSavesSkillsPanel(){return renderSavesSkills();}
+function renderCombatPanel(){return renderCombat();}
+function renderFeaturesPanel(){return renderFeatures();}
+function renderFeatsPanel(){return renderFeats();}
+function renderSpellsPanel(){return renderSpells();}
+function renderBeastsPanel(){return renderForms();}
+function renderInventoryPanel(){return renderInventory();}
+function renderWildHealButton(){return renderWildActions();}
+
+function rollSkillNumpad(key){
+  const mod=getSkillTotal(key);
+  const prof=state.skills[key]?getProf():0;
+  openNumpadDirect({target:'skill-'+key,mod,isD20:true,min:1,max:20,dieStr:'d20',label:(SKILLS[key]?.name||key)+' (d20'+fmtMod(mod)+')'});
+}
+function rollSaveNumpad(k){
+  const mod=getSaveTotal(k);
+  openNumpadDirect({target:'save-'+k,mod,isD20:true,min:1,max:20,dieStr:'d20',label:'Salvaguarda '+ATTR_FULL[k]+' (d20'+fmtMod(mod)+')'});
+}
+function openACModal(){return openCAModal();}
+function openCharacterEdit(){return openCharModal();}
+function openWeaponEdit(id){return openWeaponModal(id);}
+function openSpellEdit(id){return openSpellModal(id);}
+function openBeastEdit(key){showToast('em breve');}
+function openItemEdit(id){return openInvModal(id);}
+function addWeapon(){return openWeaponModal();}
+function addSpell(){return openSpellModal();}
+function addItem(){return openInvModal();}
+function openRestModal(){openModal('Descanso', renderRestPanel(), null);}
+
+// ensure existing renderAll output includes wild heal button in expected places? keep as-is
 
 state.spellSlots=getCurrentSlots();
 renderAll();
