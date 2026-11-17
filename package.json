@@ -4,6 +4,9 @@
   "description": "Uma calculadora que faz as contas por você , porque até somar 2+2 e difícil às vezes . Simples e rápido.",
   "main": "index.js",
   "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
     "test": "vitest run"
   },
   "repository": {
@@ -18,6 +21,8 @@
   },
   "homepage": "https://github.com/yakultSouzz/Ficha-Calculadora-de-dano#readme",
   "devDependencies": {
+    "vite": "^8.3.8",
+    "vite-plugin-pwa": "^2.0.0",
     "vitest": "^5.1.0"
   },
   "type": "module"
