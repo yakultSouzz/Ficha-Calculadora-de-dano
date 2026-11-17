@@ -1233,15 +1233,15 @@ export function renderAll(){
   let content='';
   content+=renderCharTabs()+renderHeader()+renderSituationBar();
   if(sit==='rest'){
-    content+=renderRestPanel()+renderStatsBar()+renderConditions()+renderReminders()+renderSpellSlots()+
-      renderAbilities()+renderCombat()+renderSavesSkills()+renderFeatures()+renderFeats()+
+    content+=renderRestPanel()+renderStatsBar()+renderReminders()+renderSpellSlots()+
+      renderAbilities()+renderCombat()+renderConditions()+renderSavesSkills()+renderFeatures()+renderFeats()+
       renderSpells()+renderForms()+renderInventory();
   }else if(sit==='exploration'){
-    content+=renderStatsBar()+renderConditions()+renderAbilities()+renderSavesSkills()+renderReminders()+
-      renderSpellSlots()+renderCombat()+renderFeatures()+renderFeats()+renderSpells()+renderForms()+renderInventory();
+    content+=renderStatsBar()+renderAbilities()+renderSavesSkills()+renderReminders()+
+      renderSpellSlots()+renderCombat()+renderConditions()+renderFeatures()+renderFeats()+renderSpells()+renderForms()+renderInventory();
   }else{
-    content+=renderReminders()+renderStatsBar()+renderConditions()+renderAbilities()+renderSpellSlots()+
-      renderCombat()+renderSavesSkills()+renderFeatures()+renderFeats()+renderSpells()+renderForms()+renderInventory();
+    content+=renderReminders()+renderStatsBar()+renderAbilities()+renderSpellSlots()+
+      renderCombat()+renderConditions()+renderSavesSkills()+renderFeatures()+renderFeats()+renderSpells()+renderForms()+renderInventory();
   }
   document.getElementById('app').innerHTML=content;
   Object.keys(calcValues).forEach(target=>updateInlineResult(target));
