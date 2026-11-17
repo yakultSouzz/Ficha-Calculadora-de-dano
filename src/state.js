@@ -21,7 +21,7 @@ export const RAGE_DESC='+2 dano (FOR) • Resistência a TODOS os danos exceto p
 export const defaultState={
   version:3,
   situation:'combat',
-  inspiration:false,exhaustion:0,conditions:[],
+  inspiration:0,exhaustion:0,conditions:[],
   combatRound:1,concentration:false,
   expandedSpells:[],
   theme:'light',
@@ -148,7 +148,7 @@ function buildNewCharacter(name) {
   c.feats = [];
   c.spells = [];
   c.inventory = [];
-  c.inspiration = false;
+  c.inspiration = 0;
   c.exhaustion = 0;
   c.conditions = [];
   c.situation = 'combat';
@@ -221,7 +221,8 @@ export function migrate(savedState) {
     s.character.race = 'Humano';
   }
   if (!s.situation) s.situation = 'combat';
-  if (typeof s.inspiration !== 'boolean') s.inspiration = false;
+  const insp = typeof s.inspiration === 'boolean' ? (s.inspiration ? 1 : 0) : Number(s.inspiration);
+  s.inspiration = Number.isFinite(insp) ? Math.max(0, Math.min(5, Math.round(insp))) : 0;
   if (typeof s.combatRound !== 'number' || !Number.isFinite(s.combatRound)) s.combatRound = 1;
   s.combatRound = Math.max(1, Math.round(s.combatRound));
   if (typeof s.concentration !== 'boolean') s.concentration = false;

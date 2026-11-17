@@ -6,7 +6,7 @@ import { logHistory, categoryFromTarget, updateFab, renderHistEntries } from './
 import { calcTapHTML, openNumpadDirect, closeNumpad, setNumpadHooks, calcValues, updateInlineResult } from './numpad.js';
 import { showToast } from './toast.js';
 
-let panelState = {combat:false,savesSkills:true,features:true,feats:true,spells:true,forms:true,inventory:true,conditions:false};
+let panelState = {combat:false,savesSkills:true,features:true,feats:true,spells:true,forms:true,inventory:true,conditions:false,inspiration:false};
 let histCurrentTab = 'skills';
 
 function getProf(level) {
@@ -646,11 +646,9 @@ export function confirmDeleteCharacter(id){
 export function renderHeader(){
   const character=getActiveCharacter();
   const cls=character.character.classes.map(c=>`${c.name} ${c.level}`).join(' • ');
-  const inspired=!!character.inspiration;
   return `<div class="sheet-header">
     <div class="header-actions">
       <button class="header-btn theme-toggle" onclick="toggleTheme()" title="${state.theme==='dark'?'Ativar modo claro':'Ativar modo escuro'}" aria-label="${state.theme==='dark'?'Ativar modo claro':'Ativar modo escuro'}" aria-pressed="${state.theme==='dark'}">${state.theme==='dark'?'☀️':'🌙'}</button>
-      <button class="header-btn inspiration ${inspired?'active':''}" onclick="toggleInspiration()" title="Inspiração" aria-label="Inspiração" aria-pressed="${inspired}">🌟</button>
       <button class="header-btn" onclick="exportState()" title="Exportar ficha" aria-label="Exportar ficha">📤</button>
       <button class="header-btn" onclick="document.getElementById('importFile').click()" title="Importar ficha" aria-label="Importar ficha">📥</button>
       <button class="edit-float" onclick="openCharModal()">✏ Editar</button>
@@ -666,10 +664,10 @@ export function toggleTheme(){
   save();renderAll();
   showToast(state.theme==='dark'?'🌙 Modo escuro ativado':'☀️ Modo claro ativado');
 }
-export function toggleInspiration(){
-  state.inspiration=!state.inspiration;
+export function setInspiration(delta){
+  const current=Number.isInteger(state.inspiration)?state.inspiration:0;
+  state.inspiration=Math.max(0,Math.min(5,current+delta));
   save();renderAll();
-  showToast(state.inspiration?'🌟 Inspiração ativa':'Inspiração removida');
 }
 export function handleImportFile(input){
   const file=input.files&&input.files[0];
@@ -1286,6 +1284,19 @@ export function renderForms(){
     </div>
   </div>`;
 }
+export function renderInspirationPanel(){
+  const value=Number.isInteger(state.inspiration)?state.inspiration:0;
+  return `<div class="panel inspiration-panel ${panelState.inspiration?'collapsed':''}">
+    <div class="panel-title" onclick="togglePanelKey('inspiration')">🌟 Inspiração</div>
+    <div class="panel-body">
+      <div class="inspiration-control">
+        <button class="insp-btn" onclick="setInspiration(-1)" ${value<=0?'disabled':''} aria-label="Remover inspiração">−</button>
+        <div class="inspiration-display">${value}</div>
+        <button class="insp-btn" onclick="setInspiration(1)" ${value>=5?'disabled':''} aria-label="Adicionar inspiração">+</button>
+      </div>
+    </div>
+  </div>`;
+}
 export function renderInventory(){
   const wildActive=isWild();
   const cards=state.inventory.map(it=>{
@@ -1338,6 +1349,7 @@ export function renderAll(){
     content+=renderReminders()+renderStatsBar()+renderAbilities()+renderSpellSlots()+
       renderCombat()+renderConditions()+renderSavesSkills()+renderFeatures()+renderFeats()+renderSpells()+renderForms()+renderInventory();
   }
+  content+=renderInspirationPanel();
   document.getElementById('app').innerHTML=content;
   Object.keys(calcValues).forEach(target=>updateInlineResult(target));
   updateFab();
