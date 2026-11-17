@@ -196,22 +196,22 @@ export function openHPModal(){
     </div>
     <div class="modal-sub">Tomar Dano</div>
     <div class="field-row">
-      <div class="field"><label>Qtd</label><input type="number" id="dmgAmount" value="0" min="0"></div>
+      <div class="field"><label>Qtd</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" id="dmgAmount" value="0" min="0"></div>
       <div><button type="button" class="btn-action danger" onclick="applyDamageModal()">Aplicar</button></div>
     </div>
     <div class="modal-sub">Curar</div>
     <div class="field-row">
-      <div class="field"><label>Qtd</label><input type="number" id="healAmount" value="0" min="0"></div>
+      <div class="field"><label>Qtd</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" id="healAmount" value="0" min="0"></div>
       <div><button type="button" class="btn-action success" onclick="applyHealModal()">Aplicar</button></div>
     </div>
     <div class="modal-sub">Ajustar Manualmente</div>
     <div class="field-row">
-      <div class="field"><label>HP Humano</label><input type="number" name="hpCur" value="${state.hp.current}" min="0"></div>
-      <div class="field"><label>HP Máx</label><input type="number" name="hpMax" value="${state.hp.max}" min="1"></div>
+      <div class="field"><label>HP Humano</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="hpCur" value="${state.hp.current}" min="0"></div>
+      <div class="field"><label>HP Máx</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="hpMax" value="${state.hp.max}" min="1"></div>
     </div>
     ${wildActive?`<div class="field-row">
-      <div class="field"><label>🐻 Wild Atual</label><input type="number" name="wildCur" value="${state.wildHp.current}" min="0"></div>
-      <div class="field"><label>🐻 Wild Máx</label><input type="number" name="wildHpMax" value="${state.wildHp.max}" min="0"></div>
+      <div class="field"><label>🐻 Wild Atual</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="wildCur" value="${state.wildHp.current}" min="0"></div>
+      <div class="field"><label>🐻 Wild Máx</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="wildHpMax" value="${state.wildHp.max}" min="0"></div>
     </div>`:''}`;
   openModal('Gerenciar HP',html,data=>{
     const oldHuman=state.hp.current,oldWild=state.wildHp.current;
@@ -495,6 +495,30 @@ export function openAbilityCheckNumpad(attr){
   const mod=getAttrMod(attr);
   openNumpadDirect({target:'ability-'+attr,mod,isD20:true,min:1,max:20,dieStr:'d20',
     label:'Teste de '+ATTR_FULL[attr]+' (d20'+fmtMod(mod)+')'});
+}
+export function openNumericNumpad(el){
+  if(!el)return;
+  el.setAttribute('inputmode','none');
+  el.readOnly=true;
+  el.blur();
+  const minRaw=el.getAttribute('min');
+  const maxRaw=el.getAttribute('max');
+  const min=minRaw!==null&&Number.isFinite(parseFloat(minRaw))?parseFloat(minRaw):0;
+  const max=maxRaw!==null&&Number.isFinite(parseFloat(maxRaw))?parseFloat(maxRaw):999;
+  const label=el.name||el.id||el.getAttribute('placeholder')||'Editar valor';
+  openNumpadDirect({
+    target:null,
+    mode:'number',
+    label,
+    value:el.value,
+    min,
+    max,
+    onConfirm:(n)=>{
+      el.value=String(n);
+      el.dispatchEvent(new Event('input',{bubbles:true}));
+      el.dispatchEvent(new Event('change',{bubbles:true}));
+    }
+  });
 }
 export function openPoisonNumpad(featId){
   const feat=state.feats.find(f=>f.id===featId);
@@ -1411,7 +1435,7 @@ export function openCAModal(){
         <span class="radio-label">UA da Fera</span><span class="radio-desc">${beastUA}</span></label>
     </div>`:'';
   const overrideSection=isWild()?`<p class="helper" style="margin:8px 0;">Na Forma Selvagem, use os modificadores da fera.</p>`:
-    `<div class="field"><label>CA Manual (0 = automático)</label><input type="number" name="override" value="${state.caOverride||0}" min="0"></div>`;
+    `<div class="field"><label>CA Manual (0 = automático)</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="override" value="${state.caOverride||0}" min="0"></div>`;
   const html=`
     <div class="ca-info"><div class="ca-info-title">Cálculo Atual ${isWild()?'— 🐻 Forma':''}</div>
       ${breakdownHTML}
@@ -1419,7 +1443,7 @@ export function openCAModal(){
       <div class="ca-info-total"><span>Total</span><span class="v">${ac.total}</span></div></div>
     ${overrideSection}${wildSection}
     <div class="field" style="margin-top:14px"><label>Bônus de CA</label>
-      <input type="number" name="bonus" value="${state.caBonus||0}"></div>`;
+      <input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="bonus" value="${state.caBonus||0}"></div>`;
   openModal('Editar CA',html,data=>{
     if(!isWild())state.caOverride=Math.max(0,parseInt(data.override)||0);
     if(data.wildMode)state.caWildMode=data.wildMode;
@@ -1553,8 +1577,8 @@ export function openWeaponModal(id){
         <select name="attr"><option value="str" ${w.attr==='str'?'selected':''}>FOR</option><option value="dex" ${w.attr==='dex'?'selected':''}>DES</option></select></div>
     </div>
     <div class="field-row">
-      <div class="field"><label>Bônus Mágico</label><input type="number" name="magic" value="${w.magic||0}"></div>
-      <div class="field"><label>Bônus Fixo</label><input type="number" name="flat" value="${w.flat||0}"></div>
+      <div class="field"><label>Bônus Mágico</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="magic" value="${w.magic||0}"></div>
+      <div class="field"><label>Bônus Fixo</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="flat" value="${w.flat||0}"></div>
     </div>
     <div class="field-row">
       <div class="field"><label>Dado Extra</label><input name="extraDice" value="${esc(w.extraDice||'')}"></div>
@@ -1576,7 +1600,7 @@ export function openSpellModal(id){
   const html=`
     <div class="field-row">
       <div class="field"><label>Nome</label><input name="name" value="${esc(s.name)}"></div>
-      <div class="field"><label>Nível</label><input type="number" name="level" value="${s.level}" min="0" max="9"></div>
+      <div class="field"><label>Nível</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="level" value="${s.level}" min="0" max="9"></div>
     </div>
     <div class="field-row">
       <div class="field"><label>Escola</label>
@@ -1604,7 +1628,7 @@ export function openSpellModal(id){
       <div class="field"><label>Dano/Cura</label><input name="damage" value="${esc(s.damage||'')}"></div>
       <div class="field"><label>Tipo</label><input name="damageType" value="${esc(s.damageType||'')}"></div>
     </div>
-    <div class="field"><label>Bônus Fixo (ex: SAB)</label><input type="number" name="damageMod" value="${s.damageMod||0}"></div>
+    <div class="field"><label>Bônus Fixo (ex: SAB)</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="damageMod" value="${s.damageMod||0}"></div>
     <div class="field"><label>Descrição</label><textarea name="description">${esc(s.description||'')}</textarea></div>`;
   openModal(id?'Editar Magia':'Nova Magia',html,data=>{
     const newS={id:id||'sp_'+Date.now(),name:data.name||'Magia',level:parseInt(data.level)||0,
@@ -1634,8 +1658,8 @@ export function openFeatureModal(id){
     </label>
     <div id="featUsesFields" style="display:${hasUses?'block':'none'}">
       <div class="field-row">
-        <div class="field"><label>Máx</label><input type="number" name="usesMax" value="${f.uses?.max||1}" min="1"></div>
-        <div class="field"><label>Atuais</label><input type="number" name="usesCur" value="${f.uses?.current||f.uses?.max||1}" min="0"></div>
+        <div class="field"><label>Máx</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="usesMax" value="${f.uses?.max||1}" min="1"></div>
+        <div class="field"><label>Atuais</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="usesCur" value="${f.uses?.current||f.uses?.max||1}" min="0"></div>
       </div>
       <div class="field"><label>Recarrega em</label>
         <select name="recharge">
@@ -1676,8 +1700,8 @@ export function openFeatModal(id){
     </label>
     <div id="featUsesFields2" style="display:${hasUses?'block':'none'}">
       <div class="field-row">
-        <div class="field"><label>Máx</label><input type="number" name="usesMax" value="${f.uses?.max||1}" min="1"></div>
-        <div class="field"><label>Atuais</label><input type="number" name="usesCur" value="${f.uses?.current||f.uses?.max||1}" min="0"></div>
+        <div class="field"><label>Máx</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="usesMax" value="${f.uses?.max||1}" min="1"></div>
+        <div class="field"><label>Atuais</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="usesCur" value="${f.uses?.current||f.uses?.max||1}" min="0"></div>
       </div>
       <div class="field"><label>Recarrega em</label>
         <select name="recharge">
@@ -1698,8 +1722,8 @@ export function openFeatModal(id){
         <div class="field"><label>Tipo de Dano</label><input name="combatDamageType" value="${esc(combat.damageType||'')}" placeholder="veneno"></div>
       </div>
       <div class="field-row">
-        <div class="field"><label>Bônus de Acerto</label><input type="number" name="combatAttackBonus" value="${combat.attackBonus||0}"></div>
-        <div class="field"><label>Bônus de Dano (fixo)</label><input type="number" name="combatDamageBonus" value="${combat.damageBonus||0}"></div>
+        <div class="field"><label>Bônus de Acerto</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="combatAttackBonus" value="${combat.attackBonus||0}"></div>
+        <div class="field"><label>Bônus de Dano (fixo)</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="combatDamageBonus" value="${combat.damageBonus||0}"></div>
       </div>
       <label class="checkbox-row">
         <input type="checkbox" name="combatOncePerTurn" ${combat.oncePerTurn?'checked':''}>
@@ -1743,26 +1767,26 @@ export function openBeastModal(key){
     <div class="field"><label>Nome</label><input name="name" value="${esc(b.name)}"></div>
     <div class="field-row-3">
       <div class="field"><label>CR</label><input name="cr" value="${esc(b.cr||'1')}"></div>
-      <div class="field"><label>CA</label><input type="number" name="ca" value="${b.ca||10}"></div>
-      <div class="field"><label>HP</label><input type="number" name="hp" value="${b.hp||10}"></div>
+      <div class="field"><label>CA</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="ca" value="${b.ca||10}"></div>
+      <div class="field"><label>HP</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="hp" value="${b.hp||10}"></div>
     </div>
     <div class="modal-sub">Deslocamentos (m)</div>
     <div class="field-row-3">
-      <div class="field"><label>Terrestre</label><input type="number" name="speedWalk" value="${b.speedWalk||0}" step="1.5"></div>
-      <div class="field"><label>Escalar</label><input type="number" name="speedClimb" value="${b.speedClimb||0}" step="1.5"></div>
-      <div class="field"><label>Nadar</label><input type="number" name="speedSwim" value="${b.speedSwim||0}" step="1.5"></div>
+      <div class="field"><label>Terrestre</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="speedWalk" value="${b.speedWalk||0}" step="1.5"></div>
+      <div class="field"><label>Escalar</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="speedClimb" value="${b.speedClimb||0}" step="1.5"></div>
+      <div class="field"><label>Nadar</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="speedSwim" value="${b.speedSwim||0}" step="1.5"></div>
     </div>
-    <div class="field"><label>Voar</label><input type="number" name="speedFly" value="${b.speedFly||0}" step="1.5"></div>
+    <div class="field"><label>Voar</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="speedFly" value="${b.speedFly||0}" step="1.5"></div>
     <div class="modal-sub">Atributos</div>
     <div class="field-row-3">
-      <div class="field"><label>FOR</label><input type="number" name="bStr" value="${b.attrs.str}"></div>
-      <div class="field"><label>DES</label><input type="number" name="bDex" value="${b.attrs.dex}"></div>
-      <div class="field"><label>CON</label><input type="number" name="bCon" value="${b.attrs.con}"></div>
+      <div class="field"><label>FOR</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="bStr" value="${b.attrs.str}"></div>
+      <div class="field"><label>DES</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="bDex" value="${b.attrs.dex}"></div>
+      <div class="field"><label>CON</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="bCon" value="${b.attrs.con}"></div>
     </div>
     <div class="field-row-3">
-      <div class="field"><label>INT</label><input type="number" name="bInt" value="${b.attrs.int}"></div>
-      <div class="field"><label>SAB</label><input type="number" name="bWis" value="${b.attrs.wis}"></div>
-      <div class="field"><label>CAR</label><input type="number" name="bCha" value="${b.attrs.cha}"></div>
+      <div class="field"><label>INT</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="bInt" value="${b.attrs.int}"></div>
+      <div class="field"><label>SAB</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="bWis" value="${b.attrs.wis}"></div>
+      <div class="field"><label>CAR</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="bCha" value="${b.attrs.cha}"></div>
     </div>
     <div class="modal-sub">Sentidos e Perícias</div>
     <div class="field"><label>Sentidos</label><input name="senses" value="${esc(b.senses||'')}"></div>
@@ -1775,7 +1799,7 @@ export function openBeastModal(key){
     <div class="field"><label>Nome</label><input name="atkName" value="${esc(atk.name||'Ataque')}"></div>
     <div class="field-row-3">
       <div class="field"><label>Dado</label><input name="atkDie" value="${esc(atk.die||'1d6')}"></div>
-      <div class="field"><label>Mod. Acerto</label><input type="number" name="atkMod" value="${atk.mod||0}"></div>
+      <div class="field"><label>Mod. Acerto</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="atkMod" value="${atk.mod||0}"></div>
       <div class="field"><label>Tipo</label><input name="atkType" value="${esc(atk.type||'cortante')}"></div>
     </div>
     <div class="field-row">
@@ -1810,8 +1834,8 @@ export function openInvModal(id){
   const html=`
     <div class="field"><label>Nome</label><input name="name" value="${esc(it.name)}"></div>
     <div class="field-row">
-      <div class="field"><label>Quantidade</label><input type="number" name="qty" value="${it.qty}" min="0"></div>
-      <div class="field"><label>Peso (lbs)</label><input type="number" name="weight" value="${it.weight}" min="0" step="0.1"></div>
+      <div class="field"><label>Quantidade</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="qty" value="${it.qty}" min="0"></div>
+      <div class="field"><label>Peso (lbs)</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="weight" value="${it.weight}" min="0" step="0.1"></div>
     </div>
     <div class="field"><label>Descrição</label><textarea name="desc">${esc(it.desc||'')}</textarea></div>
     <div class="modal-sub">Lembrete</div>
