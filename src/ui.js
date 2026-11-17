@@ -26,7 +26,7 @@ const getSpellDC=()=>8+getProf()+getAttrMod(state.spellcasting.ability);
 const getSpellAtk=()=>getProf()+getAttrMod(state.spellcasting.ability);
 const getPassivePerc=()=>10+getSkillTotal('percepcao');
 const isRage=()=>state.effects.find(e=>e.id==='rage')?.active;
-const isWild=()=>state.effects.find(e=>e.id==='wild')?.active;
+const isWild=()=>hasDruidLevels()&&!!state.effects.find(e=>e.id==='wild')?.active;
 const getActiveWeapon=()=>state.weapons.find(w=>w.active);
 export function getSkillTotal(key){const s=SKILLS[key];return getAttrMod(s.attr)+(state.skills[key]?getProf():0);}
 export function getSaveTotal(k){return getAttrMod(k)+(state.saves[k]?getProf():0);}
@@ -811,7 +811,8 @@ export function renderCombatFeatToggles(){
   </div>`;
 }
 export function renderCombat(){
-  const toggles=state.effects.map(e=>{
+  const effects=state.effects.filter(e=>e.id!=='wild'||hasDruidLevels());
+  const toggles=effects.map(e=>{
     const feat=state.features.find(f=>f.name===e.name);
     let usesBadge='';
     if(feat&&feat.uses)usesBadge=`<span class="uses-badge">${feat.uses.current}/${feat.uses.max}</span>`;
@@ -1005,7 +1006,8 @@ export function renderSavesSkills(){
   </div>`;
 }
 export function renderFeatures(){
-  const cards=state.features.map(f=>{
+  const features=hasDruidLevels()?state.features:state.features.filter(f=>f.id!=='f5'&&f.id!=='f6');
+  const cards=features.map(f=>{
     let usesHTML='';
     if(f.uses){
       const low=f.uses.current<=0?'low':'';
@@ -1171,6 +1173,7 @@ export function renderSpells(){
   </div>`;
 }
 export function renderForms(){
+  if(!hasDruidLevels())return '';
   const cards=Object.keys(state.beasts).map(key=>{
     const b=state.beasts[key];const isActive=key===state.activeBeast;
     return `<div class="beast-card ${isActive?'active':''}">
