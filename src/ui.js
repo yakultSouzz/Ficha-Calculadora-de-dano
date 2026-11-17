@@ -1119,13 +1119,16 @@ export function renderFeats(){
 }
 export function renderSpells(){
   const dc=getSpellDC(),atk=getSpellAtk();
-  const cantrips=state.spells.filter(s=>s.level===0);
+  const query=(window.spellSearchQuery||'').trim().toLowerCase();
+  const filtered=query?state.spells.filter(sp=>String(sp.name||'').toLowerCase().includes(query)):state.spells;
+  const cantrips=filtered.filter(s=>s.level===0);
   const byLevel={};
-  state.spells.filter(s=>s.level>0).forEach(s=>{
+  filtered.filter(s=>s.level>0).forEach(s=>{
     if(!byLevel[s.level])byLevel[s.level]=[];
     byLevel[s.level].push(s);
   });
   const renderSpell=(sp)=>{
+    const expanded=(state.expandedSpells||[]).includes(sp.id);
     const dmgLine=sp.damage&&sp.damageType?`<strong>${sp.damage} ${sp.damageType}</strong>`:'';
     let combatInfo='';
     if(sp.attackType==='spell')combatInfo=`<div class="spell-combat">⚔ Ataque mágico: ${fmtMod(atk)} • 💥 ${dmgLine}</div>`;
@@ -1159,12 +1162,7 @@ export function renderSpells(){
         ${calcTapHTML('spcrit-'+sp.id,critCalc.dmgMod,critCalc.diceStr,false,`${sp.name} — CRÍTICO`,true)}
       </div>`;
     }
-    return `<div class="spell-card${isFeat?' feat-spell':''}">
-      <div class="spell-header">
-        <div class="spell-name">${esc(sp.name)}</div>
-        <span class="spell-level${isFeat?' feat':''}">${isFeat?'🌟 '+(sp.level===0?'Truque':'Nv '+sp.level):(sp.level===0?'Truque':'Nv '+sp.level)}</span>
-        <button class="btn-icon" onclick="openSpellModal('${sp.id}')">✏️</button>
-      </div>
+    const meta=`
       <div class="spell-meta">
         <span><strong>${esc(sp.school||'—')}</strong></span>
         <span>${esc(sp.castTime||'')}</span>
@@ -1173,22 +1171,38 @@ export function renderSpells(){
       <div class="spell-meta">
         <span>${esc(sp.components||'—')}</span>
         <span>${esc(sp.duration||'')}</span>
+      </div>`;
+    const rolls=(dmgRow||critRow)?`<div class="spell-rolls">${dmgRow}${critRow}</div>`:'';
+    return `<div class="spell-card${isFeat?' feat-spell':''}${expanded?' open':''}">
+      <div class="spell-header" onclick="toggleSpellExpand('${sp.id}')">
+        <span class="spell-expand-icon">${expanded?'▾':'▸'}</span>
+        <div class="spell-name">${esc(sp.name)}</div>
+        <span class="spell-level${isFeat?' feat':''}">${isFeat?'🌟 '+(sp.level===0?'Truque':'Nv '+sp.level):(sp.level===0?'Truque':'Nv '+sp.level)}</span>
+        <button class="btn-icon" onclick="event.stopPropagation();openSpellModal('${sp.id}')">✏️</button>
       </div>
-      ${combatInfo}
-      ${atkRow}
-      ${dmgRow}
-      ${critRow}
-      <div class="spell-desc">${esc(sp.description||'')}</div>
+      ${expanded?meta:''}
+      ${expanded?combatInfo:''}
+      ${expanded?atkRow:''}
+      ${rolls}
+      ${expanded?`<div class="spell-desc">${esc(sp.description||'')}</div>`:''}
     </div>`;
   };
   let spellsHTML='';
   Object.keys(byLevel).sort((a,b)=>a-b).forEach(lvl=>{
     spellsHTML+=`<div class="sub-title">Nível ${lvl}</div>`+byLevel[lvl].map(renderSpell).join('');
   });
-  const emptyMsg = state.spells.length===0 ? '<div class="empty">Nenhuma magia cadastrada. Toque em "+ Nova Magia" para adicionar.</div>' : '';
-  return `<div class="panel ${panelState.spells?'collapsed':''}">
+  let emptyMsg = '';
+  if(state.spells.length===0){
+    emptyMsg = '<div class="empty">Nenhuma magia cadastrada. Toque em "+ Nova Magia" para adicionar.</div>';
+  }else if(query&&filtered.length===0){
+    emptyMsg = '<div class="empty">Nenhuma magia encontrada.</div>';
+  }
+  return `<div class="panel ${panelState.spells?'collapsed':''}" id="spellsPanel">
     <div class="panel-title" onclick="togglePanelKey('spells')">🔮 Magias</div>
     <div class="panel-body">
+      <input class="spell-search-input" id="spellSearchInput" type="text"
+        placeholder="🔍 Pesquisar magia..." value="${esc(window.spellSearchQuery||'')}"
+        oninput="filterSpells(this.value)">
       <div class="scenario" style="margin-bottom:10px">
         <div class="scenario-title">Conjuração (${ATTR_NAMES[state.spellcasting.ability]})</div>
         <div class="scenario-row"><span class="k">CD de Magia</span><span class="v hot">${dc}</span></div>
@@ -1200,6 +1214,23 @@ export function renderSpells(){
       <button class="btn-add" onclick="openSpellModal()">+ Nova Magia</button>
     </div>
   </div>`;
+}
+export function toggleSpellExpand(id){
+  if(!Array.isArray(state.expandedSpells)) state.expandedSpells=[];
+  const idx=state.expandedSpells.indexOf(id);
+  if(idx>=0) state.expandedSpells.splice(idx,1);
+  else state.expandedSpells.push(id);
+  save();renderAll();
+}
+export function filterSpells(query){
+  window.spellSearchQuery=String(query||'');
+  renderSpellsPanel();
+  const input=document.getElementById('spellSearchInput');
+  if(input){
+    input.focus();
+    const len=input.value.length;
+    try{input.setSelectionRange(len,len);}catch(e){}
+  }
 }
 export function renderForms(){
   if(!hasDruidLevels())return '';
@@ -1814,7 +1845,13 @@ export function renderSavesSkillsPanel(){return renderSavesSkills();}
 export function renderCombatPanel(){return renderCombat();}
 export function renderFeaturesPanel(){return renderFeatures();}
 export function renderFeatsPanel(){return renderFeats();}
-export function renderSpellsPanel(){return renderSpells();}
+export function renderSpellsPanel(){
+  const html=renderSpells();
+  const el=document.getElementById('spellsPanel');
+  if(el) el.outerHTML=html;
+  Object.keys(calcValues).forEach(target=>updateInlineResult(target));
+  return html;
+}
 export function renderBeastsPanel(){return renderForms();}
 export function renderInventoryPanel(){return renderInventory();}
 export function renderWildHealButton(){return renderWildActions();}

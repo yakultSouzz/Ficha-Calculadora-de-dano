@@ -23,6 +23,7 @@ export const defaultState={
   situation:'combat',
   inspiration:false,exhaustion:0,conditions:[],
   combatRound:1,concentration:false,
+  expandedSpells:[],
   character:{name:'Kaelen',race:'Humano',classes:[{name:'Bárbaro',level:3},{name:'Druida',level:2}]},
   hp:{current:66,max:66,temp:0},wildHp:{current:0,max:0},
   hitDice:{current:5,max:5},hitDieSize:12,speed:9,
@@ -223,6 +224,7 @@ export function migrate(savedState) {
   if (typeof s.combatRound !== 'number' || !Number.isFinite(s.combatRound)) s.combatRound = 1;
   s.combatRound = Math.max(1, Math.round(s.combatRound));
   if (typeof s.concentration !== 'boolean') s.concentration = false;
+  if (!Array.isArray(s.expandedSpells)) s.expandedSpells = [];
   if (typeof s.exhaustion !== 'number' || !Number.isFinite(s.exhaustion)) s.exhaustion = 0;
   s.exhaustion = Math.max(0, Math.min(6, Math.round(s.exhaustion)));
   if (!Array.isArray(s.conditions)) s.conditions = [];
