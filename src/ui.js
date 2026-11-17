@@ -649,6 +649,7 @@ export function renderHeader(){
   const inspired=!!character.inspiration;
   return `<div class="sheet-header">
     <div class="header-actions">
+      <button class="header-btn theme-toggle" onclick="toggleTheme()" title="${state.theme==='dark'?'Ativar modo claro':'Ativar modo escuro'}" aria-label="${state.theme==='dark'?'Ativar modo claro':'Ativar modo escuro'}" aria-pressed="${state.theme==='dark'}">${state.theme==='dark'?'☀️':'🌙'}</button>
       <button class="header-btn inspiration ${inspired?'active':''}" onclick="toggleInspiration()" title="Inspiração" aria-label="Inspiração" aria-pressed="${inspired}">🌟</button>
       <button class="header-btn" onclick="exportState()" title="Exportar ficha" aria-label="Exportar ficha">📤</button>
       <button class="header-btn" onclick="document.getElementById('importFile').click()" title="Importar ficha" aria-label="Importar ficha">📥</button>
@@ -659,6 +660,11 @@ export function renderHeader(){
     <div class="char-line">${esc(cls)}</div>
     <div class="char-line-sub">${esc(character.character.race||'')} • Nível ${getTotalLevel()} • Prof +${getProf()}</div>
   </div>`;
+}
+export function toggleTheme(){
+  state.theme=state.theme==='dark'?'light':'dark';
+  save();renderAll();
+  showToast(state.theme==='dark'?'🌙 Modo escuro ativado':'☀️ Modo claro ativado');
 }
 export function toggleInspiration(){
   state.inspiration=!state.inspiration;
@@ -1315,7 +1321,9 @@ export function renderInventory(){
   </div>`;
 }
 export function renderAll(){
-  document.body.className='mode-'+(state.situation||'combat');
+  document.body.className='mode-'+(state.situation||'combat')+' theme-'+(state.theme||'light');
+  const themeMeta=document.querySelector('meta[name="theme-color"]');
+  if(themeMeta)themeMeta.setAttribute('content',state.theme==='dark'?'#12100e':'#e8dcb8');
   const sit=state.situation||'combat';
   let content='';
   content+=renderCharTabs()+renderHeader()+renderSituationBar();
