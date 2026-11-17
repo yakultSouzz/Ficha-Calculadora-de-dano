@@ -1,11 +1,12 @@
-import { state, saveState as save, emptyBeast, ATTR_NAMES, ATTR_FULL, SKILLS } from './state.js';
+import { state, saveState as save, emptyBeast, ATTR_NAMES, ATTR_FULL, SKILLS, exportState, importState } from './state.js';
+export { exportState, importState };
 import { getMod, getProf as getProfPure, parseDice, diceInfo, calcWeaponAttack as calcWeaponAttackPure, calcBeastAttack as calcBeastAttackPure, getAutoSlots as getAutoSlotsPure } from './calc.js';
 import { fmtMod, esc } from './utils.js';
 import { logHistory, categoryFromTarget, updateFab, renderHistEntries } from './history.js';
 import { calcTapHTML, openNumpadDirect, setNumpadHooks, calcValues, updateInlineResult } from './numpad.js';
 import { showToast } from './toast.js';
 
-let panelState = {combat:false,savesSkills:true,features:true,feats:true,spells:true,forms:true,inventory:true};
+let panelState = {combat:false,savesSkills:true,features:true,feats:true,spells:true,forms:true,inventory:true,conditions:false};
 let histCurrentTab = 'skills';
 
 function getProf(level) {
@@ -560,12 +561,30 @@ export function renderSituationBar(){
 }
 export function renderHeader(){
   const cls=state.character.classes.map(c=>`${c.name} ${c.level}`).join(' • ');
+  const inspired=!!state.inspiration;
   return `<div class="sheet-header">
-    <button class="edit-float" onclick="openCharModal()">✏ Editar</button>
+    <div class="header-actions">
+      <button class="header-btn inspiration ${inspired?'active':''}" onclick="toggleInspiration()" title="Inspiração" aria-label="Inspiração" aria-pressed="${inspired}">🌟</button>
+      <button class="header-btn" onclick="exportState()" title="Exportar ficha" aria-label="Exportar ficha">📤</button>
+      <button class="header-btn" onclick="document.getElementById('importFile').click()" title="Importar ficha" aria-label="Importar ficha">📥</button>
+      <button class="edit-float" onclick="openCharModal()">✏ Editar</button>
+      <input type="file" id="importFile" accept=".json,application/json" hidden onchange="handleImportFile(this)">
+    </div>
     <div class="char-name">${esc(state.character.name)||'— Sem Nome —'}</div>
     <div class="char-line">${esc(cls)}</div>
     <div class="char-line-sub">${esc(state.character.race||'')} • Nível ${getTotalLevel()} • Prof +${getProf()}</div>
   </div>`;
+}
+export function toggleInspiration(){
+  state.inspiration=!state.inspiration;
+  save();renderAll();
+  showToast(state.inspiration?'🌟 Inspiração ativa':'Inspiração removida');
+}
+export function handleImportFile(input){
+  const file=input.files&&input.files[0];
+  input.value='';
+  if(!file)return;
+  importState(file).catch(()=>{});
 }
 export function renderStatsBar(){
   const ac=getACBreakdown();
@@ -591,6 +610,47 @@ export function renderStatsBar(){
     <div class="stat-box perc-pass"><div class="lbl">Perc. Passiva</div>
       <div class="val">${getPassivePerc()}</div></div>
   </div>`;
+}
+export function renderConditions(){
+  const level=state.exhaustion||0;
+  const active=new Set(state.conditions||[]);
+  const common=['Caído','Envenenado','Amedrontado','Atordoado','Inconsciente'];
+  const dots=Array.from({length:6},(_,i)=>
+    `<button class="exh-dot ${i<level?'filled':''}" onclick="setExhaustion(${i+1})" title="Exaustão ${i+1}" aria-label="Exaustão ${i+1}"></button>`).join('');
+  const chips=common.map(c=>
+    `<button class="condition-chip ${active.has(c)?'active':''}" onclick="toggleCondition('${c}')">${c}</button>`).join('');
+  return `<div class="panel ${panelState.conditions?'collapsed':''}">
+    <div class="panel-title" onclick="togglePanelKey('conditions')">💀 Condições & Exaustão</div>
+    <div class="panel-body">
+      <div class="exhaustion-row">
+        <span class="exhaustion-label">Exaustão</span>
+        <div class="exhaustion-controls">
+          <button class="exh-step" onclick="setExhaustion(${level-1})" ${level<=0?'disabled':''} aria-label="Reduzir exaustão">−</button>
+          <div class="exh-dots">${dots}</div>
+          <button class="exh-step" onclick="setExhaustion(${level+1})" ${level>=6?'disabled':''} aria-label="Aumentar exaustão">+</button>
+        </div>
+        <span class="exh-value">${level}/6</span>
+      </div>
+      <div class="condition-chips">${chips}</div>
+    </div>
+  </div>`;
+}
+export function setExhaustion(level){
+  state.exhaustion=Math.max(0,Math.min(6,Math.round(Number(level)||0)));
+  save();renderAll();
+  showToast(state.exhaustion?`😵 Exaustão nível ${state.exhaustion}`:'✓ Exaustão removida');
+}
+export function toggleCondition(condition){
+  if(!Array.isArray(state.conditions))state.conditions=[];
+  const idx=state.conditions.indexOf(condition);
+  if(idx>=0){
+    state.conditions.splice(idx,1);
+    showToast(`Condição removida: ${condition}`);
+  }else{
+    state.conditions.push(condition);
+    showToast(`Condição ativa: ${condition}`);
+  }
+  save();renderAll();
 }
 export function renderAbilities(){
   return `<div class="ability-grid">`+Object.keys(ATTR_NAMES).map(k=>{
@@ -1132,14 +1192,14 @@ export function renderAll(){
   let content='';
   content+=renderHeader()+renderSituationBar();
   if(sit==='rest'){
-    content+=renderRestPanel()+renderStatsBar()+renderReminders()+renderSpellSlots()+
+    content+=renderRestPanel()+renderStatsBar()+renderConditions()+renderReminders()+renderSpellSlots()+
       renderAbilities()+renderCombat()+renderSavesSkills()+renderFeatures()+renderFeats()+
       renderSpells()+renderForms()+renderInventory();
   }else if(sit==='exploration'){
-    content+=renderStatsBar()+renderAbilities()+renderSavesSkills()+renderReminders()+
+    content+=renderStatsBar()+renderConditions()+renderAbilities()+renderSavesSkills()+renderReminders()+
       renderSpellSlots()+renderCombat()+renderFeatures()+renderFeats()+renderSpells()+renderForms()+renderInventory();
   }else{
-    content+=renderReminders()+renderStatsBar()+renderAbilities()+renderSpellSlots()+
+    content+=renderReminders()+renderStatsBar()+renderConditions()+renderAbilities()+renderSpellSlots()+
       renderCombat()+renderSavesSkills()+renderFeatures()+renderFeats()+renderSpells()+renderForms()+renderInventory();
   }
   document.getElementById('app').innerHTML=content;

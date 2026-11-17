@@ -1,3 +1,5 @@
+import { showToast } from './toast.js';
+
 export const ATTR_NAMES={str:'FOR',dex:'DES',con:'CON',int:'INT',wis:'SAB',cha:'CAR'};
 export const ATTR_FULL={str:'Força',dex:'Destreza',con:'Constituição',int:'Inteligência',wis:'Sabedoria',cha:'Carisma'};
 export const SKILLS={
@@ -19,6 +21,7 @@ export const RAGE_DESC='+2 dano (FOR) • Resistência a TODOS os danos exceto p
 export const defaultState={
   version:3,
   situation:'combat',
+  inspiration:false,exhaustion:0,conditions:[],
   character:{name:'Kaelen',race:'Humano',classes:[{name:'Bárbaro',level:3},{name:'Druida',level:2}]},
   hp:{current:66,max:66,temp:0},wildHp:{current:0,max:0},
   hitDice:{current:5,max:5},hitDieSize:12,speed:9,
@@ -111,6 +114,10 @@ export function migrate(savedState) {
     s.character.race = 'Humano';
   }
   if (!s.situation) s.situation = 'combat';
+  if (typeof s.inspiration !== 'boolean') s.inspiration = false;
+  if (typeof s.exhaustion !== 'number' || !Number.isFinite(s.exhaustion)) s.exhaustion = 0;
+  s.exhaustion = Math.max(0, Math.min(6, Math.round(s.exhaustion)));
+  if (!Array.isArray(s.conditions)) s.conditions = [];
   if (!s.hitDice) s.hitDice = { current: 5, max: 5 };
   if (!s.hitDieSize) s.hitDieSize = 12;
   if (!s.wildHp) s.wildHp = { current: 0, max: 0 };
@@ -200,4 +207,43 @@ export function loadState() {
   }
   saveState();
   return state;
+}
+
+export function exportState() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'ficha-kaelen.json';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+  showToast('📤 Ficha exportada');
+}
+
+export function importState(file) {
+  return new Promise((resolve, reject) => {
+    if (!file) { reject(new Error('Nenhum arquivo selecionado')); return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        state = migrate(JSON.parse(String(reader.result)));
+        saveState();
+        if (typeof window !== 'undefined' && typeof window.renderAll === 'function') {
+          window.renderAll();
+        }
+        showToast('📥 Ficha importada com sucesso');
+        resolve(state);
+      } catch (e) {
+        showToast('⚠ Erro ao importar ficha');
+        reject(e);
+      }
+    };
+    reader.onerror = () => {
+      showToast('⚠ Erro ao ler o arquivo');
+      reject(reader.error);
+    };
+    reader.readAsText(file);
+  });
 }
