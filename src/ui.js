@@ -3,7 +3,7 @@ export { exportState, importState };
 import { getMod, getProf as getProfPure, parseDice, diceInfo, calcWeaponAttack as calcWeaponAttackPure, calcBeastAttack as calcBeastAttackPure, getAutoSlots as getAutoSlotsPure } from './calc.js';
 import { fmtMod, esc } from './utils.js';
 import { logHistory, categoryFromTarget, updateFab, renderHistEntries } from './history.js';
-import { calcTapHTML, openNumpadDirect, setNumpadHooks, calcValues, updateInlineResult } from './numpad.js';
+import { calcTapHTML, openNumpadDirect, closeNumpad, setNumpadHooks, calcValues, updateInlineResult } from './numpad.js';
 import { showToast } from './toast.js';
 
 let panelState = {combat:false,savesSkills:true,features:true,feats:true,spells:true,forms:true,inventory:true,conditions:false};
@@ -52,10 +52,21 @@ export function toggleCombatFeat(id){
   else showToast(`🌟 ${f.name} desativado`);
 }
 
-export function newTurn(){
+export function nextTurn(){
+  state.combatRound=(state.combatRound||1)+1;
   state.feats.forEach(f=>{ if(f.combat) f.usedThisTurn=false; });
   save();renderAll();
-  showToast('🔄 Novo turno');
+  showToast(`⚔️ Round ${state.combatRound}`);
+}
+export function resetCombat(){
+  state.combatRound=1;
+  save();renderAll();
+  showToast('⚔️ Combate resetado');
+}
+export function toggleConcentration(){
+  state.concentration=!state.concentration;
+  save();renderAll();
+  showToast(state.concentration?'🧠 Concentração ativa':'🧠 Concentração encerrada');
 }
 
 export function openHistoryModal(){
@@ -148,6 +159,15 @@ export function applyDamage(amount){
   logHistory('hp',logEntry);
   if(navigator.vibrate)navigator.vibrate(60);
   renderAll();save();
+  if(state.concentration&&amount>0){
+    const dc=Math.max(10,Math.floor(amount/2));
+    showToast(`🧠 Dano! Teste de Concentração CD ${dc}`);
+    openNumpadDirect({
+      target:null,mod:getAttrMod('con'),isD20:true,min:1,max:20,dieStr:'d20',
+      label:`Concentração (CD ${dc})`,
+      onConfirm:()=>closeNumpad()
+    });
+  }
 }
 export function applyHealing(amount){
   if(amount<=0)return;
@@ -807,7 +827,6 @@ export function renderCombatFeatToggles(){
   return `<div class="combat-feat-section">
     <div class="combat-feat-title">🌟 Talentos em Combate<span class="hint">— toque para aplicar</span></div>
     <div class="toggles" style="padding:0;border-bottom:none;margin-bottom:0">${toggles}</div>
-    <button class="btn-action" style="margin-top:6px;font-size:11px;padding:4px 8px" onclick="newTurn()">🔄 Novo Turno</button>
   </div>`;
 }
 export function renderCombat(){
@@ -824,6 +843,16 @@ export function renderCombat(){
   return `<div class="panel ${panelState.combat?'collapsed':''} major">
     <div class="panel-title" onclick="togglePanelKey('combat')">⚔ Combate</div>
     <div class="panel-body">
+      <div class="combat-turn-bar">
+        <div class="combat-turn-top">
+          <div class="combat-round">⚔️ Round: <strong>${state.combatRound||1}</strong></div>
+          <button class="toggle-btn concentration ${state.concentration?'active':''}" onclick="toggleConcentration()">🧠 Concentração</button>
+        </div>
+        <div class="combat-turn-actions">
+          <button class="btn-action btn-turn" onclick="nextTurn()">Passar Turno</button>
+          <button class="btn-action btn-turn reset" onclick="resetCombat()">Resetar Combate</button>
+        </div>
+      </div>
       <div class="toggles">${toggles}</div>
       ${renderCombatFeatToggles()}
       ${renderScenario()}

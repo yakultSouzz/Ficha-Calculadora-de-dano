@@ -5,7 +5,7 @@ import { showToast, showCritToast } from './toast.js';
 
 export let calcValues = {};
 export let calcTimers = {};
-export let numpadState = {target:null,mod:0,isD20:false,min:1,max:20,dieStr:'d20',label:'',value:'',onConfirm:null,mode:'dice',chips:null,isCritDamage:false};
+export let numpadState = {target:null,mod:0,isD20:false,min:1,max:20,dieStr:'d20',label:'',value:'',value2:'',rollMode:'normal',activeRoll:0,onConfirm:null,mode:'dice',chips:null,isCritDamage:false};
 
 const numpadHooks = { classLevel: null, updateSlotTotal: null };
 export function setNumpadHooks(hooks) { Object.assign(numpadHooks, hooks); }
@@ -31,6 +31,9 @@ export function openNumpadDirect(opts){
     dieStr:opts.dieStr||'',
     label:opts.label||'Rolagem',
     value:opts.value!==undefined?String(opts.value):(calcValues[opts.target]||''),
+    value2:'',
+    rollMode:'normal',
+    activeRoll:0,
     onConfirm:opts.onConfirm||null,
     mode:opts.mode||'dice',
     chips:opts.chips||null,
@@ -63,6 +66,7 @@ export function openNumpadDirect(opts){
     const critChip=numpadState.isCritDamage&&c===numpadState.max;
     return `<button class="np-chip${(isCrit||critChip)?' np-crit':''}" onclick="npChip('${c}')">${c}${(isCrit||critChip)?'⭐':''}</button>`;
   }).join('');
+  syncRollModes();
   updateNumpadDisplay();
   document.getElementById('numpadOverlay').classList.add('show');
   updateFab();
@@ -106,46 +110,104 @@ export function openNumberEditor(el){
 }
 export function closeNumpad(){
   numpadState.target=null;numpadState.onConfirm=null;
+  numpadState.rollMode='normal';numpadState.value2='';numpadState.activeRoll=0;
   document.getElementById('numpadOverlay').classList.remove('show');
   updateFab();
 }
+function isMultiRoll(){
+  return numpadState.isD20 && numpadState.rollMode!=='normal';
+}
+function currentRollValue(){
+  return isMultiRoll()&&numpadState.activeRoll===1?numpadState.value2:numpadState.value;
+}
+function setCurrentRollValue(value){
+  if(isMultiRoll()&&numpadState.activeRoll===1)numpadState.value2=value;
+  else numpadState.value=value;
+}
+function resolveRoll(){
+  const min=numpadState.min,max=numpadState.max;
+  const n1=parseInt(numpadState.value);
+  const n2=parseInt(numpadState.value2);
+  const valid1=Number.isInteger(n1)&&n1>=min&&n1<=max;
+  if(!isMultiRoll())return{n:n1,valid:valid1,multi:false};
+  const valid2=Number.isInteger(n2)&&n2>=min&&n2<=max;
+  if(!valid1||!valid2)return{n:null,n1,n2,valid:false,multi:true};
+  return{n:numpadState.rollMode==='adv'?Math.max(n1,n2):Math.min(n1,n2),n1,n2,valid:true,multi:true};
+}
+function syncRollModes(){
+  const modes=document.getElementById('numpadRollModes');
+  if(!modes)return;
+  modes.style.display=numpadState.isD20&&numpadState.mode!=='number'?'':'none';
+  const names=['normal','adv','dis'];
+  modes.querySelectorAll('.numpad-mode-btn').forEach((btn,i)=>{
+    btn.classList.toggle('active',names[i]===numpadState.rollMode);
+  });
+}
+export function setRollMode(mode){
+  if(!['normal','adv','dis'].includes(mode)||!numpadState.isD20)return;
+  if(mode==='normal'){
+    numpadState.rollMode='normal';
+    numpadState.value2='';
+    numpadState.activeRoll=0;
+  }else{
+    if(numpadState.rollMode==='normal'){
+      numpadState.value2='';
+      numpadState.activeRoll=numpadState.value?1:0;
+    }
+    numpadState.rollMode=mode;
+  }
+  syncRollModes();
+  updateNumpadDisplay();
+  if(navigator.vibrate)navigator.vibrate(10);
+}
+export function selectRollSlot(index){
+  if(!isMultiRoll())return;
+  numpadState.activeRoll=index===1?1:0;
+  updateNumpadDisplay();
+}
 export function npDigit(d){
+  const current=currentRollValue();
   const maxLen=String(numpadState.max).length;
-  if(numpadState.value.length>=maxLen)return;
-  if(numpadState.value===''&&d==='0')return;
-  const candidate=numpadState.value+d;
+  if(current.length>=maxLen)return;
+  if(current===''&&d==='0')return;
+  const candidate=current+d;
   const n=parseInt(candidate);
   if(n>numpadState.max&&candidate.length>=maxLen)return;
-  numpadState.value=candidate;
+  setCurrentRollValue(candidate);
+  if(isMultiRoll()&&numpadState.activeRoll===0&&candidate.length>=maxLen)numpadState.activeRoll=1;
   updateNumpadDisplay();
   if(navigator.vibrate)navigator.vibrate(8);
 }
 export function npDel(){
-  numpadState.value=numpadState.value.slice(0,-1);
+  setCurrentRollValue(currentRollValue().slice(0,-1));
   updateNumpadDisplay();
   if(navigator.vibrate)navigator.vibrate(8);
 }
 export function npChip(v){
-  numpadState.value=String(v);
+  setCurrentRollValue(String(v));
+  if(isMultiRoll()&&numpadState.activeRoll===0)numpadState.activeRoll=1;
   updateNumpadDisplay();
   if(navigator.vibrate)navigator.vibrate(12);
 }
 export function npConfirm(){
   if(!numpadState.target&&!numpadState.onConfirm)return;
-  const v=numpadState.value;
-  if(!v){showToast('Digite um valor');return;}
-  const n=parseInt(v);
-  if(isNaN(n)||n<numpadState.min||n>numpadState.max){
-    showToast(`Valor deve estar entre ${numpadState.min} e ${numpadState.max}`);
+  const resolved=resolveRoll();
+  if(!resolved.valid){
+    if(resolved.multi&&(!numpadState.value||!numpadState.value2))showToast('Digite os dois valores');
+    else if(!resolved.multi&&!numpadState.value)showToast('Digite um valor');
+    else showToast(`Valor deve estar entre ${numpadState.min} e ${numpadState.max}`);
     return;
   }
+  const n=resolved.n;
+  const v=String(n);
   const target=numpadState.target;
   const mod=numpadState.mod;
   const total=n+mod;
   const isD20=numpadState.isD20;
   const isCrit=isD20&&n===20;
   const isFail=isD20&&n===1;
-  const label=numpadState.label;
+  const baseLabel=numpadState.label;
+  const label=resolved.multi?`${baseLabel} (${numpadState.rollMode==='adv'?'Vantagem':'Desvantagem'})`:baseLabel;
   const onConfirmCb=numpadState.onConfirm;
   const dieStr=numpadState.dieStr;
   const isEditMode=numpadState.mode==='number';
@@ -179,12 +241,26 @@ export function npConfirm(){
   updateFab();
   if(isEditMode)showToast(`${label}: ${n}`);
   else if(isCritDamage)showCritToast(`${label} — CRÍTICO: ${total}`);
+  else if(resolved.multi)showToast(`${label}: ${resolved.n1}/${resolved.n2} → ${n}${fmtMod(mod)} = ${total}`);
   else showToast(`${label}: ${n}${fmtMod(mod)} = ${total}`);
 }
 export function updateNumpadDisplay(){
-  document.getElementById('numpadValue').textContent=numpadState.value||'0';
+  const valueEl=document.getElementById('numpadValue');
   const total=document.getElementById('numpadTotal');
   total.classList.remove('filled','crit','fail','invalid');
+  if(isMultiRoll()){
+    const v1=numpadState.value||'—';
+    const v2=numpadState.value2||'—';
+    valueEl.innerHTML=`<span class="np-roll-slot ${numpadState.activeRoll===0?'active':''}" onclick="selectRollSlot(0)">${v1}</span><span class="np-roll-sep">/</span><span class="np-roll-slot ${numpadState.activeRoll===1?'active':''}" onclick="selectRollSlot(1)">${v2}</span>`;
+    const r=resolveRoll();
+    if(!r.valid){total.textContent='—';return;}
+    total.textContent=r.n+numpadState.mod;
+    if(r.n===20)total.classList.add('crit');
+    else if(r.n===1)total.classList.add('fail');
+    else total.classList.add('filled');
+    return;
+  }
+  valueEl.textContent=numpadState.value||'0';
   if(numpadState.value===''){total.textContent='—';return;}
   const n=parseInt(numpadState.value);
   if(n<numpadState.min||n>numpadState.max){total.textContent='!';total.classList.add('invalid');return;}
