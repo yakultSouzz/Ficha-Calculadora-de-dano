@@ -1,4 +1,4 @@
-import { state, saveState as save, emptyBeast, ATTR_NAMES, ATTR_FULL, SKILLS, exportState, importState } from './state.js';
+import { state, saveState as save, emptyBeast, ATTR_NAMES, ATTR_FULL, SKILLS, exportState, importState, getActiveCharacter, getActiveId, getCharacters, switchCharacter as switchCharacterState, createCharacter as createCharacterState, deleteCharacter as deleteCharacterState } from './state.js';
 export { exportState, importState };
 import { getMod, getProf as getProfPure, parseDice, diceInfo, calcWeaponAttack as calcWeaponAttackPure, calcBeastAttack as calcBeastAttackPure, getAutoSlots as getAutoSlotsPure } from './calc.js';
 import { fmtMod, esc } from './utils.js';
@@ -559,9 +559,50 @@ export function renderSituationBar(){
       <span class="sit-icon">🌙</span><span class="sit-label">Descanso</span></button>
   </div>`;
 }
+export function renderCharTabs(){
+  const characters=getCharacters();
+  const activeId=getActiveId();
+  const tabs=Object.entries(characters).map(([id,character])=>{
+    const name=(character.character&&character.character.name)||'Sem Nome';
+    const active=id===activeId;
+    return `<button class="char-tab ${active?'active':''}" onclick="switchCharacterTab('${id}')" title="${esc(name)}">
+      <span class="char-tab-name">${esc(name)}</span>
+      ${active?`<span class="char-tab-close" onclick="event.stopPropagation();confirmDeleteCharacter('${id}')" title="Excluir personagem" aria-label="Excluir personagem">✕</span>`:''}
+    </button>`;
+  }).join('');
+  return `<div class="char-tabs">${tabs}<button class="char-tab-add" onclick="promptNewCharacter()" title="Novo personagem" aria-label="Novo personagem">+</button></div>`;
+}
+export function switchCharacterTab(id){
+  const character=switchCharacterState(id);
+  if(!character)return;
+  renderAll();
+  showToast(`👤 ${character.character.name}`);
+}
+export function promptNewCharacter(){
+  const name=prompt('Nome do novo personagem:','Novo Herói');
+  if(name===null)return;
+  const clean=name.trim();
+  if(!clean){showToast('⚠ Informe um nome');return;}
+  const character=createCharacterState(clean);
+  renderAll();
+  showToast(`✨ ${character.character.name} criado`);
+}
+export function confirmDeleteCharacter(id){
+  const character=getCharacters()[id];
+  if(!character)return;
+  const name=character.character.name||'Sem Nome';
+  if(!confirm(`Excluir "${name}"?\nEssa ação não pode ser desfeita.`))return;
+  if(!deleteCharacterState(id)){
+    showToast('⚠ Mantenha pelo menos um personagem');
+    return;
+  }
+  renderAll();
+  showToast('🗑 Personagem excluído');
+}
 export function renderHeader(){
-  const cls=state.character.classes.map(c=>`${c.name} ${c.level}`).join(' • ');
-  const inspired=!!state.inspiration;
+  const character=getActiveCharacter();
+  const cls=character.character.classes.map(c=>`${c.name} ${c.level}`).join(' • ');
+  const inspired=!!character.inspiration;
   return `<div class="sheet-header">
     <div class="header-actions">
       <button class="header-btn inspiration ${inspired?'active':''}" onclick="toggleInspiration()" title="Inspiração" aria-label="Inspiração" aria-pressed="${inspired}">🌟</button>
@@ -570,9 +611,9 @@ export function renderHeader(){
       <button class="edit-float" onclick="openCharModal()">✏ Editar</button>
       <input type="file" id="importFile" accept=".json,application/json" hidden onchange="handleImportFile(this)">
     </div>
-    <div class="char-name">${esc(state.character.name)||'— Sem Nome —'}</div>
+    <div class="char-name">${esc(character.character.name)||'— Sem Nome —'}</div>
     <div class="char-line">${esc(cls)}</div>
-    <div class="char-line-sub">${esc(state.character.race||'')} • Nível ${getTotalLevel()} • Prof +${getProf()}</div>
+    <div class="char-line-sub">${esc(character.character.race||'')} • Nível ${getTotalLevel()} • Prof +${getProf()}</div>
   </div>`;
 }
 export function toggleInspiration(){
@@ -1190,7 +1231,7 @@ export function renderAll(){
   document.body.className='mode-'+(state.situation||'combat');
   const sit=state.situation||'combat';
   let content='';
-  content+=renderHeader()+renderSituationBar();
+  content+=renderCharTabs()+renderHeader()+renderSituationBar();
   if(sit==='rest'){
     content+=renderRestPanel()+renderStatsBar()+renderConditions()+renderReminders()+renderSpellSlots()+
       renderAbilities()+renderCombat()+renderSavesSkills()+renderFeatures()+renderFeats()+

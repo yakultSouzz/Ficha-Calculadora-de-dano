@@ -1,7 +1,9 @@
-import { state, saveState as save } from './state.js';
+import { getActiveCharacter, saveState as save } from './state.js';
 import { esc } from './utils.js';
 
 export function logHistory(cat,entry){
+  const state=getActiveCharacter();
+  if(!state)return;
   if(!state.history) state.history={skills:[],attacks:[],hp:[]};
   if(!state.history[cat]) state.history[cat]=[];
   entry.id=Date.now()+Math.random();
@@ -14,8 +16,9 @@ export function categoryFromTarget(target){
   if(!target) return 'attacks';
   if(target.startsWith('skill-')||target.startsWith('save-')) return 'skills';
   if(target.startsWith('spdmg-')||target.startsWith('spcrit-')){
+    const state=getActiveCharacter();
     const spId=target.replace('spdmg-','').replace('spcrit-','');
-    const sp=state.spells.find(s=>s.id===spId);
+    const sp=(state?.spells||[]).find(s=>s.id===spId);
     if(sp&&sp.damageType==='cura')return 'hp';
     return 'attacks';
   }
@@ -23,7 +26,8 @@ export function categoryFromTarget(target){
 }
 export function updateFab(){
   const fab=document.getElementById('historyFab');if(!fab)return;
-  const h=state.history||{skills:[],attacks:[],hp:[]};
+  const state=getActiveCharacter();
+  const h=(state&&state.history)||{skills:[],attacks:[],hp:[]};
   const total=(h.skills?.length||0)+(h.attacks?.length||0)+(h.hp?.length||0);
   const badge=document.getElementById('fabBadge');
   if(badge){
@@ -35,7 +39,8 @@ export function updateFab(){
   fab.style.display=(numpadOpen||modalOpen)?'none':'flex';
 }
 export function renderHistEntries(cat){
-  const entries=(state.history&&state.history[cat])||[];
+  const state=getActiveCharacter();
+  const entries=(state&&state.history&&state.history[cat])||[];
   if(entries.length===0)return '<div class="hist-empty">Nenhum registro ainda</div>';
   return entries.map(e=>{
     if(cat==='hp'){

@@ -91,8 +91,112 @@ export const SAVE_KEY = 'ficha-v22';
 export const SAVE_VERSION = 3;
 
 export let state;
+export let db = { activeId: null, characters: {} };
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
+
+function newId() {
+  let id = Date.now().toString();
+  while (db.characters[id]) id = String(Number(id) + 1);
+  return id;
+}
+
+function syncActiveState() {
+  if (!db || !db.characters || typeof db.characters !== 'object') {
+    db = { activeId: null, characters: {} };
+  }
+  const ids = Object.keys(db.characters);
+  if (!ids.length) {
+    const id = newId();
+    db.characters[id] = migrate(null);
+    db.activeId = id;
+  } else if (!db.activeId || !db.characters[db.activeId]) {
+    db.activeId = ids[0];
+  }
+  state = db.characters[db.activeId];
+  return state;
+}
+
+function buildNewCharacter(name) {
+  const c = clone(defaultState);
+  c.character = { name, race: 'Humano', classes: [{ name: 'Aventureiro', level: 1 }] };
+  c.attrs = { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 };
+  c.saves = { str: false, dex: false, con: false, int: false, wis: false, cha: false };
+  c.skills = {};
+  c.hp = { current: 10, max: 10, temp: 0 };
+  c.wildHp = { current: 0, max: 0 };
+  c.hitDice = { current: 1, max: 1 };
+  c.hitDieSize = 8;
+  c.speed = 9;
+  c.caOverride = 0;
+  c.caBonus = 0;
+  c.caWildMode = 'auto';
+  c.spellcasting = { ability: 'wis' };
+  c.spellSlots = {};
+  c.spellSlotsOverride = {};
+  c.spellSlotsBonus = {};
+  c.history = { skills: [], attacks: [], hp: [] };
+  c.weapons = [{
+    id: 'w_unarmed', name: 'Ataque Desarmado', die: '1d4', magic: 0, flat: 0,
+    extraDice: '', extraType: '', attr: 'str', props: 'Corpo a corpo', active: true
+  }];
+  c.effects = [];
+  c.features = [];
+  c.feats = [];
+  c.spells = [];
+  c.inventory = [];
+  c.inspiration = false;
+  c.exhaustion = 0;
+  c.conditions = [];
+  c.situation = 'combat';
+  return migrate(c);
+}
+
+export function getActiveCharacter() {
+  if (db && db.activeId && db.characters && db.characters[db.activeId]) {
+    return db.characters[db.activeId];
+  }
+  return state || null;
+}
+
+export function getActiveId() {
+  return db ? db.activeId : null;
+}
+
+export function getCharacters() {
+  return db && db.characters ? db.characters : {};
+}
+
+export function switchCharacter(id) {
+  if (!db || !db.characters || !db.characters[id]) return null;
+  db.activeId = id;
+  state = db.characters[id];
+  saveState();
+  return state;
+}
+
+export function createCharacter(name) {
+  const cleanName = String(name || '').trim() || 'Novo Herói';
+  const id = newId();
+  const character = buildNewCharacter(cleanName);
+  db.characters[id] = character;
+  db.activeId = id;
+  state = character;
+  saveState();
+  return character;
+}
+
+export function deleteCharacter(id) {
+  if (!db || !db.characters || !db.characters[id]) return false;
+  if (Object.keys(db.characters).length <= 1) return false;
+  delete db.characters[id];
+  if (db.activeId === id) {
+    db.activeId = Object.keys(db.characters)[0];
+    state = db.characters[db.activeId];
+  }
+  saveState();
+  return true;
+}
 
 export function migrate(savedState) {
   const base = clone(defaultState);
@@ -193,28 +297,54 @@ export function migrate(savedState) {
 
 export function saveState() {
   try {
+    if (!db || !db.characters || typeof db.characters !== 'object') {
+      db = { activeId: null, characters: {} };
+    }
+    if (!db.activeId) db.activeId = newId();
+    if (!db.characters[db.activeId]) db.characters[db.activeId] = state || migrate(null);
+    if (!state) state = db.characters[db.activeId];
     state.version = SAVE_VERSION;
-    localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+    db.characters[db.activeId] = state;
+    localStorage.setItem(SAVE_KEY, JSON.stringify(db));
   } catch (e) {}
 }
 
 export function loadState() {
+  let saved = null;
   try {
-    const saved = localStorage.getItem(SAVE_KEY);
-    state = migrate(saved ? JSON.parse(saved) : null);
+    const raw = localStorage.getItem(SAVE_KEY);
+    saved = raw ? JSON.parse(raw) : null;
   } catch (e) {
-    state = migrate(null);
+    saved = null;
   }
+
+  if (saved && saved.characters && typeof saved.characters === 'object' && !Array.isArray(saved.characters)) {
+    const characters = {};
+    Object.keys(saved.characters).forEach(id => {
+      characters[id] = migrate(saved.characters[id]);
+    });
+    db = { activeId: saved.activeId, characters };
+    syncActiveState();
+  } else {
+    const id = Date.now().toString();
+    db = { activeId: id, characters: { [id]: migrate(saved) } };
+    state = db.characters[id];
+  }
+
   saveState();
   return state;
 }
 
 export function exportState() {
-  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const character = getActiveCharacter() || migrate(null);
+  const blob = new Blob([JSON.stringify(character, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
+  const slug = String(character.character && character.character.name || 'personagem')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'personagem';
   link.href = url;
-  link.download = 'ficha-kaelen.json';
+  link.download = `ficha-${slug}.json`;
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -228,7 +358,9 @@ export function importState(file) {
     const reader = new FileReader();
     reader.onload = () => {
       try {
+        if (!db || !db.activeId) loadState();
         state = migrate(JSON.parse(String(reader.result)));
+        db.characters[db.activeId] = state;
         saveState();
         if (typeof window !== 'undefined' && typeof window.renderAll === 'function') {
           window.renderAll();
