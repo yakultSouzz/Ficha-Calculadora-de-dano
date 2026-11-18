@@ -5,9 +5,9 @@ import { showToast, showCritToast } from './toast.js';
 
 export let calcValues = {};
 export let calcTimers = {};
-export let numpadState = {target:null,mod:0,isD20:false,min:1,max:20,dieStr:'d20',label:'',value:'',value2:'',rollMode:'normal',activeRoll:0,onConfirm:null,mode:'dice',chips:null,isCritDamage:false};
+export let numpadState = {target:null,mod:0,isD20:false,min:1,max:20,dieStr:'d20',label:'',value:'',value2:'',rollMode:'normal',activeRoll:0,onConfirm:null,mode:'dice',chips:null,isCritDamage:false,usageAction:null};
 
-const numpadHooks = { classLevel: null, updateSlotTotal: null };
+const numpadHooks = { classLevel: null, updateSlotTotal: null, actionUsed: null };
 export function setNumpadHooks(hooks) { Object.assign(numpadHooks, hooks); }
 
 export function formatDieLabel(dieStr){
@@ -37,7 +37,8 @@ export function openNumpadDirect(opts){
     onConfirm:opts.onConfirm||null,
     mode:opts.mode||'dice',
     chips:opts.chips||null,
-    isCritDamage:opts.isCritDamage||false
+    isCritDamage:opts.isCritDamage||false,
+    usageAction:opts.usageAction||null
   };
   const numpadEl=document.getElementById('numpadEl');
   numpadEl.classList.toggle('edit-mode', numpadState.mode==='number');
@@ -84,7 +85,8 @@ export function openNumpad(targetId){
     label:btn.dataset.calcLabel||'Rolagem',
     value:calcValues[targetId]||'',
     mode:'dice',
-    isCritDamage: btn.dataset.calcCrit==='1'
+    isCritDamage: btn.dataset.calcCrit==='1',
+    usageAction: btn.dataset.calcUsageAction||null
   });
 }
 export function openNumberEditor(el){
@@ -233,6 +235,7 @@ export function npConfirm(){
     const finalLabel = isCritDamage ? '⭐ CRÍTICO — '+label : label;
     logHistory(cat,{label:finalLabel,die:formatDieLabel(dieStr),roll:n,mod,total,isD20,crit:isCrit,fail:isFail,isCritDamage});
   }
+  if(numpadState.usageAction&&numpadHooks.actionUsed)numpadHooks.actionUsed(numpadState.usageAction);
   if(onConfirmCb){onConfirmCb(n,total);}
   
   document.getElementById('numpadOverlay').classList.remove('show');
@@ -286,7 +289,7 @@ export function updateInlineResult(target){
   else if(isD20&&n===1){btn.textContent=total+'❌';btn.classList.add('fail');}
   else{btn.textContent=total;btn.classList.add('filled');}
 }
-export function calcTapHTML(target,mod,dieStr,isD20,label,isCrit){
+export function calcTapHTML(target,mod,dieStr,isD20,label,isCrit,usageAction){
   const info=diceInfo(dieStr);
   const cls = isCrit ? 'calc-tap crit-tap' : 'calc-tap';
   return `<button class="${cls}" 
@@ -298,6 +301,7 @@ export function calcTapHTML(target,mod,dieStr,isD20,label,isCrit){
     data-calc-max="${info.max}"
     data-calc-label="${esc(label)}" 
     data-calc-crit="${isCrit?'1':'0'}"
+    data-calc-usage-action="${usageAction||''}"
     onclick="openNumpad('${target}')">?</button>`;
 }
 

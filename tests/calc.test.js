@@ -45,6 +45,18 @@ describe('calcWeaponAttack', () => {
     expect(r.damage).toContain('2d6 fogo');
   });
 
+  it('off-hand damage excludes the attr modifier but keeps magic and rage bonus', () => {
+    const off = {...axe, isOffHand:true};
+    const base = calcWeaponAttack(off, false, baseState);
+    expect(base.toHit).toBe(8);
+    expect(base.flatBonus).toBe(2);
+
+    const rageState = {...baseState, effects:[{id:'rage',active:true}]};
+    const raging = calcWeaponAttack(off, false, rageState);
+    expect(raging.flatBonus).toBe(4);
+    expect(raging.rageBonus).toBe(2);
+  });
+
   it('rage adds +2 damage only for str weapons', () => {
     const rageState = {...baseState, effects:[{id:'rage',active:true}]};
     const rStr = calcWeaponAttack({...axe, attr:'str'}, false, rageState);

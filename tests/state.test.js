@@ -40,6 +40,8 @@ describe('multi-character state', () => {
     expect(saved.activeId).toBeTruthy();
     expect(saved.characters[saved.activeId].character.name).toBe('Kaelen');
     expect(saved.characters[saved.activeId].hp.max).toBe(40);
+    expect(active.actionsUsed).toEqual({ action: false, bonus: false, reaction: false });
+    expect(active.weapons.some(w => w.id === 'w_axe_off' && w.isOffHand)).toBe(true);
   });
 
   it('creates, switches and deletes characters', () => {

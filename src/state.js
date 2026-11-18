@@ -23,6 +23,7 @@ export const defaultState={
   situation:'combat',
   inspiration:0,exhaustion:0,conditions:[],
   combatRound:1,concentration:false,
+  actionsUsed:{action:false,bonus:false,reaction:false},
   expandedSpells:[],
   theme:'light',
   character:{name:'Kaelen',race:'Humano',classes:[{name:'Bárbaro',level:3},{name:'Druida',level:2}]},
@@ -38,6 +39,7 @@ export const defaultState={
   history:{skills:[],attacks:[],hp:[]},
   weapons:[
     {id:'w_axe',name:'Machadinha +2 (Fogo)',die:'1d6',magic:2,flat:0,extraDice:'1d6',extraType:'fogo',attr:'str',props:'Leve, Arremesso 6/18m',active:true},
+    {id:'w_axe_off',name:'Machadinha +2 (Mão Inábil)',die:'1d6',magic:2,flat:0,extraDice:'1d6',extraType:'fogo',attr:'str',props:'Leve, Arremesso 6/18m',active:false,isOffHand:true},
     {id:'w_tri',name:'Tridente +1',die:'1d8',magic:1,flat:0,extraDice:'',extraType:'',attr:'str',props:'Versátil, Arremesso 6/18m',active:false}
   ],
   effects:[
@@ -223,6 +225,11 @@ export function migrate(savedState) {
   if (!s.situation) s.situation = 'combat';
   const insp = typeof s.inspiration === 'boolean' ? (s.inspiration ? 1 : 0) : Number(s.inspiration);
   s.inspiration = Number.isFinite(insp) ? Math.max(0, Math.min(5, Math.round(insp))) : 0;
+  const baseActions = { action: false, bonus: false, reaction: false };
+  s.actionsUsed = { ...baseActions, ...(s.actionsUsed && typeof s.actionsUsed === 'object' ? s.actionsUsed : {}) };
+  Object.keys(baseActions).forEach(k => {
+    if (typeof s.actionsUsed[k] !== 'boolean') s.actionsUsed[k] = false;
+  });
   if (typeof s.combatRound !== 'number' || !Number.isFinite(s.combatRound)) s.combatRound = 1;
   s.combatRound = Math.max(1, Math.round(s.combatRound));
   if (typeof s.concentration !== 'boolean') s.concentration = false;
@@ -281,6 +288,12 @@ export function migrate(savedState) {
     if (b.speedFly === undefined) b.speedFly = 0;
     if (!Array.isArray(b.attacks) || !b.attacks.length) b.attacks = tpl.attacks;
   });
+
+  if (!Array.isArray(s.weapons)) s.weapons = clone(base.weapons);
+  if (s.character && s.character.name === 'Kaelen' && !s.weapons.some(w => w.id === 'w_axe_off')) {
+    const offHand = base.weapons.find(w => w.id === 'w_axe_off');
+    if (offHand) s.weapons.push(clone(offHand));
+  }
 
   if (!Array.isArray(s.inventory)) s.inventory = [];
   s.inventory.forEach(it => {

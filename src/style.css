@@ -637,6 +637,17 @@ body.theme-dark.mode-rest{--mode-accent:#a58ce0;--mode-wash:rgba(165,140,224,0.0
   gap:8px;margin-bottom:6px;}
 .combat-round{font-family:var(--serif);font-size:13px;font-weight:700;color:var(--ink);}
 .combat-round strong{color:var(--red);font-size:16px;font-variant-numeric:tabular-nums;}
+.action-tracker{display:flex;flex-direction:column;gap:6px;margin:0 0 8px;
+  padding:6px 8px;background:var(--surface);border:1px solid var(--border-soft);border-radius:7px;}
+.action-tracker-title{font-family:var(--serif);font-size:10px;font-weight:700;
+  letter-spacing:0.5px;text-transform:uppercase;color:var(--ink-soft);}
+.action-buttons{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;}
+.action-btn{padding:7px 5px;border:1px solid var(--border-soft);border-radius:6px;
+  background:var(--paper);color:var(--ink-soft);font-size:10px;font-weight:800;
+  cursor:pointer;box-shadow:var(--shadow-sm);transition:all .15s;white-space:nowrap;}
+.action-btn:active{transform:scale(.97);}
+.action-btn.used{text-decoration:line-through;opacity:0.5;background:var(--paper-2);
+  color:var(--ink-dim);box-shadow:none;}
 .toggle-btn.concentration{padding:5px 10px;font-size:10px;}
 .combat-turn-actions{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
 .btn-action.btn-turn{margin:0;padding:7px 8px;font-size:11px;font-weight:800;

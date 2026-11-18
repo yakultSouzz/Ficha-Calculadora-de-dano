@@ -54,14 +54,36 @@ export function toggleCombatFeat(id){
 
 export function nextTurn(){
   state.combatRound=(state.combatRound||1)+1;
+  state.actionsUsed={action:false,bonus:false,reaction:false};
   state.feats.forEach(f=>{ if(f.combat) f.usedThisTurn=false; });
   save();renderAll();
   showToast(`⚔️ Round ${state.combatRound}`);
 }
 export function resetCombat(){
   state.combatRound=1;
+  state.actionsUsed={action:false,bonus:false,reaction:false};
   save();renderAll();
   showToast('⚔️ Combate resetado');
+}
+const ACTION_TYPES=['action','bonus','reaction'];
+function ensureActionsUsed(){
+  if(!state.actionsUsed||typeof state.actionsUsed!=='object'){
+    state.actionsUsed={action:false,bonus:false,reaction:false};
+  }
+  ACTION_TYPES.forEach(k=>{ if(typeof state.actionsUsed[k]!=='boolean') state.actionsUsed[k]=false; });
+}
+export function toggleAction(type){
+  if(!ACTION_TYPES.includes(type))return;
+  ensureActionsUsed();
+  state.actionsUsed[type]=!state.actionsUsed[type];
+  save();renderAll();
+}
+export function markActionUsed(type){
+  if(!ACTION_TYPES.includes(type))return;
+  ensureActionsUsed();
+  if(state.actionsUsed[type])return;
+  state.actionsUsed[type]=true;
+  save();renderAll();
 }
 export function toggleConcentration(){
   state.concentration=!state.concentration;
@@ -857,6 +879,17 @@ export function renderCombatFeatToggles(){
     <div class="toggles" style="padding:0;border-bottom:none;margin-bottom:0">${toggles}</div>
   </div>`;
 }
+function renderActionTracker(){
+  const used=state.actionsUsed||{};
+  const actions=[['action','🟢','Ação'],['bonus','🟡','Bônus'],['reaction','🔵','Reação']];
+  return `<div class="action-tracker">
+    <span class="action-tracker-title">Economia de Ações</span>
+    <div class="action-buttons">${actions.map(([key,icon,label])=>{
+      const isUsed=!!used[key];
+      return `<button class="action-btn ${isUsed?'used':''}" onclick="toggleAction('${key}')" aria-pressed="${isUsed}">${icon} ${label}</button>`;
+    }).join('')}</div>
+  </div>`;
+}
 export function renderCombat(){
   const effects=state.effects.filter(e=>e.id!=='wild'||hasDruidLevels());
   const toggles=effects.map(e=>{
@@ -876,6 +909,7 @@ export function renderCombat(){
           <div class="combat-round">⚔️ Round: <strong>${state.combatRound||1}</strong></div>
           <button class="toggle-btn concentration ${state.concentration?'active':''}" onclick="toggleConcentration()">🧠 Concentração</button>
         </div>
+        ${renderActionTracker()}
         <div class="combat-turn-actions">
           <button class="btn-action btn-turn" onclick="nextTurn()">Passar Turno</button>
           <button class="btn-action btn-turn reset" onclick="resetCombat()">Resetar Combate</button>
@@ -940,6 +974,7 @@ export function renderWeapons(){
   return state.weapons.map(w=>{
     const normal=calcWeaponAttack(w,false);
     const crit=calcWeaponAttack(w,true);
+    const usageAction=w.isOffHand?'bonus':null;
     return `<div class="atk-card ${w.active?'active':''}">
       <div class="atk-header">
         <div class="atk-name" onclick="selectWeapon('${w.id}')">${esc(w.name)}${w.active?'<span class="atk-tag">Ativa</span>':''}</div>
@@ -951,17 +986,17 @@ export function renderWeapons(){
       <div class="atk-line">
         <span class="ico">⚔</span><span class="lbl">Acerto:</span>
         <span class="val">${fmtMod(normal.toHit)}</span>
-        ${calcTapHTML('watk-'+w.id,normal.toHit,'d20',true,w.name+' — Ataque')}
+        ${calcTapHTML('watk-'+w.id,normal.toHit,'d20',true,w.name+' — Ataque',false,usageAction)}
       </div>
       <div class="atk-line">
         <span class="ico">💥</span><span class="lbl">Dano:</span>
         <span class="val">${normal.damage}</span>
-        ${calcTapHTML('wdmg-'+w.id,normal.flatBonus,normal.diceStr,false,w.name+' — Dano')}
+        ${calcTapHTML('wdmg-'+w.id,normal.flatBonus,normal.diceStr,false,w.name+' — Dano',false,usageAction)}
       </div>
       <div class="atk-line crit-line">
         <span class="ico">⭐</span><span class="lbl">Crítico:</span>
         <span class="val">${crit.damage}</span>
-        ${calcTapHTML('wcrit-'+w.id,crit.flatBonus,crit.diceStr,false,w.name+' — CRÍTICO',true)}
+        ${calcTapHTML('wcrit-'+w.id,crit.flatBonus,crit.diceStr,false,w.name+' — CRÍTICO',true,usageAction)}
       </div>
       ${w.props?`<div class="atk-props">${esc(w.props)}</div>`:''}
     </div>`;
@@ -1366,6 +1401,10 @@ export function toggleEffect(id){
       feat.uses.current--;
     }
     e.active=true;
+    if(id==='rage'||id==='wild'){
+      ensureActionsUsed();
+      state.actionsUsed.bonus=true;
+    }
     if(id==='rage'&&hasTotemBear())showToast('🔥 Fúria — 🐾 resistência a tudo exceto psíquico');
     if(id==='wild'){
       const b=state.beasts[state.activeBeast];
@@ -1926,7 +1965,8 @@ setNumpadHooks({
   classLevel: (idx, n) => {
     if (!isNaN(idx) && modalClasses[idx]) modalClasses[idx].level = Math.max(1, Math.min(20, n));
   },
-  updateSlotTotal: (idx) => updateSlotTotalDisplay(idx)
+  updateSlotTotal: (idx) => updateSlotTotalDisplay(idx),
+  actionUsed: (type) => markActionUsed(type)
 });
 
 export function initApp() {
