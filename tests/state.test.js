@@ -41,7 +41,28 @@ describe('multi-character state', () => {
     expect(saved.characters[saved.activeId].character.name).toBe('Kaelen');
     expect(saved.characters[saved.activeId].hp.max).toBe(40);
     expect(active.actionsUsed).toEqual({ action: false, bonus: false, reaction: false });
-    expect(active.weapons.some(w => w.id === 'w_axe_off' && w.isOffHand)).toBe(true);
+    expect(active.weapons.some(w => w.id === 'w_axe_off' && w.equipState === 'off')).toBe(true);
+  });
+
+  it('migrates legacy weapon active flags to hand equipment', () => {
+    store[SAVE_KEY] = JSON.stringify({
+      version: 3,
+      character: { name: 'Kaelen', race: 'Humano', classes: [{ name: 'Bárbaro', level: 3 }] },
+      weapons: [
+        { id: 'w_axe', name: 'Machadinha', active: true },
+        { id: 'w_axe_off', name: 'Machadinha Inábil', active: false, isOffHand: true },
+        { id: 'w_tri', name: 'Tridente', active: false }
+      ]
+    });
+
+    const active = loadState();
+    const byId = id => active.weapons.find(w => w.id === id);
+
+    expect(byId('w_axe').equipState).toBe('main');
+    expect(byId('w_axe_off').equipState).toBe('off');
+    expect(byId('w_tri').equipState).toBe('none');
+    expect('active' in byId('w_axe')).toBe(false);
+    expect('isOffHand' in byId('w_axe_off')).toBe(false);
   });
 
   it('creates, switches and deletes characters', () => {

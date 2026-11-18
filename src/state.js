@@ -38,9 +38,9 @@ export const defaultState={
   spellSlotsBonus:{},
   history:{skills:[],attacks:[],hp:[]},
   weapons:[
-    {id:'w_axe',name:'Machadinha +2 (Fogo)',die:'1d6',magic:2,flat:0,extraDice:'1d6',extraType:'fogo',attr:'str',props:'Leve, Arremesso 6/18m',active:true},
-    {id:'w_axe_off',name:'Machadinha +2 (Mão Inábil)',die:'1d6',magic:2,flat:0,extraDice:'1d6',extraType:'fogo',attr:'str',props:'Leve, Arremesso 6/18m',active:false,isOffHand:true},
-    {id:'w_tri',name:'Tridente +1',die:'1d8',magic:1,flat:0,extraDice:'',extraType:'',attr:'str',props:'Versátil, Arremesso 6/18m',active:false}
+    {id:'w_axe',name:'Machadinha +2 (Fogo)',die:'1d6',magic:2,flat:0,extraDice:'1d6',extraType:'fogo',attr:'str',props:'Leve, Arremesso 6/18m',equipState:'main'},
+    {id:'w_axe_off',name:'Machadinha +2 (Mão Inábil)',die:'1d6',magic:2,flat:0,extraDice:'1d6',extraType:'fogo',attr:'str',props:'Leve, Arremesso 6/18m',equipState:'off'},
+    {id:'w_tri',name:'Tridente +1',die:'1d8',magic:1,flat:0,extraDice:'',extraType:'',attr:'str',props:'Versátil, Arremesso 6/18m',equipState:'none'}
   ],
   effects:[
     {id:'rage',name:'Fúria',type:'rage',active:false,desc:RAGE_DESC,totemBear:true},
@@ -143,7 +143,7 @@ function buildNewCharacter(name) {
   c.history = { skills: [], attacks: [], hp: [] };
   c.weapons = [{
     id: 'w_unarmed', name: 'Ataque Desarmado', die: '1d4', magic: 0, flat: 0,
-    extraDice: '', extraType: '', attr: 'str', props: 'Corpo a corpo', active: true
+    extraDice: '', extraType: '', attr: 'str', props: 'Corpo a corpo', equipState: 'main'
   }];
   c.effects = [];
   c.features = [];
@@ -290,6 +290,15 @@ export function migrate(savedState) {
   });
 
   if (!Array.isArray(s.weapons)) s.weapons = clone(base.weapons);
+  s.weapons.forEach(w => {
+    if (!['none', 'main', 'off'].includes(w.equipState)) {
+      if (w.id === 'w_axe_off' || w.isOffHand === true) w.equipState = 'off';
+      else if (w.active === true) w.equipState = 'main';
+      else w.equipState = 'none';
+    }
+    delete w.active;
+    delete w.isOffHand;
+  });
   if (s.character && s.character.name === 'Kaelen' && !s.weapons.some(w => w.id === 'w_axe_off')) {
     const offHand = base.weapons.find(w => w.id === 'w_axe_off');
     if (offHand) s.weapons.push(clone(offHand));

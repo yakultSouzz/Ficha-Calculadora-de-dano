@@ -702,7 +702,7 @@ body.theme-dark.mode-rest{--mode-accent:#a58ce0;--mode-wash:rgba(165,140,224,0.0
   border:1px solid var(--border-soft);border-radius:6px;
   padding:10px 12px;margin-bottom:7px;box-shadow:var(--shadow-sm);transition:all .15s;}
 .atk-card{border-left:3px solid var(--border-mid);}
-.atk-card.active{border-left-color:var(--red);
+.atk-card.equipped{border-left-color:var(--red);
   background:linear-gradient(180deg,rgba(107,31,17,0.05),rgba(107,31,17,0.02));}
 .beast-card{border-left:3px solid var(--green);}
 .beast-card.active{background:linear-gradient(180deg,rgba(74,107,58,0.08),rgba(74,107,58,0.03));}
@@ -716,6 +716,16 @@ body.theme-dark.mode-rest{--mode-accent:#a58ce0;--mode-wash:rgba(165,140,224,0.0
 
 .atk-header,.beast-header,.spell-header{display:flex;justify-content:space-between;
   align-items:flex-start;gap:6px;margin-bottom:5px;flex-wrap:wrap;}
+.atk-heading{display:flex;align-items:center;gap:6px;flex:1;min-width:0;flex-wrap:wrap;}
+.weapon-hand-controls{display:flex;gap:3px;flex-wrap:wrap;flex-shrink:0;}
+.hand-btn{padding:3px 6px;border:1px solid var(--border-soft);border-radius:10px;
+  background:var(--paper);color:var(--ink-dim);font-size:8px;font-weight:800;
+  letter-spacing:0.3px;text-transform:uppercase;cursor:pointer;line-height:1.2;
+  transition:all .15s;}
+.hand-btn:active{transform:scale(.97);}
+.hand-btn.equipped{background:var(--red);border-color:var(--red);
+  color:var(--on-accent);box-shadow:var(--shadow-sm);}
+.hand-btn.off.equipped{background:var(--green);border-color:var(--green);}
 .spell-header{cursor:pointer;align-items:center;}
 .spell-expand-icon{color:var(--ink-dim);font-size:12px;line-height:1;width:14px;
   text-align:center;flex-shrink:0;transition:color .15s;}
@@ -728,6 +738,7 @@ body.theme-dark.mode-rest{--mode-accent:#a58ce0;--mode-wash:rgba(165,140,224,0.0
   border-radius:8px;background:var(--red);color:var(--on-accent);
   letter-spacing:0.5px;display:inline-block;margin-left:4px;
   text-transform:uppercase;white-space:nowrap;}
+.atk-tag.off{background:var(--green);}
 .spell-level{background:var(--red-light);margin-left:0;}
 .spell-level.feat{background:var(--moon);}
 .btn-icon{background:transparent;border:none;color:var(--ink-dim);

@@ -46,7 +46,7 @@ describe('calcWeaponAttack', () => {
   });
 
   it('off-hand damage excludes the attr modifier but keeps magic and rage bonus', () => {
-    const off = {...axe, isOffHand:true};
+    const off = {...axe, equipState:'off'};
     const base = calcWeaponAttack(off, false, baseState);
     expect(base.toHit).toBe(8);
     expect(base.flatBonus).toBe(2);

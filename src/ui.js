@@ -27,7 +27,10 @@ const getSpellAtk=()=>getProf()+getAttrMod(state.spellcasting.ability);
 const getPassivePerc=()=>10+getSkillTotal('percepcao');
 const isRage=()=>state.effects.find(e=>e.id==='rage')?.active;
 const isWild=()=>hasDruidLevels()&&!!state.effects.find(e=>e.id==='wild')?.active;
-const getActiveWeapon=()=>state.weapons.find(w=>w.active);
+const normalizeWeaponProp=(v)=>String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+const isLightWeapon=(w)=>normalizeWeaponProp(w&&w.props).includes('leve');
+const isTwoHandedWeapon=(w)=>normalizeWeaponProp(w&&w.props).includes('duas maos');
+const getActiveWeapon=()=>state.weapons.find(w=>w.equipState==='main')||state.weapons.find(w=>w.equipState==='off');
 export function getSkillTotal(key){const s=SKILLS[key];return getAttrMod(s.attr)+(state.skills[key]?getProf():0);}
 export function getSaveTotal(k){return getAttrMod(k)+(state.saves[k]?getProf():0);}
 export function hasDruidLevels(){return state.character.classes.some(c=>(c.name||'').toLowerCase().includes('druida')&&parseInt(c.level)>0);}
@@ -984,7 +987,7 @@ export function renderScenario(){
       if(calc.featDice.length){
         rows+=`<div class="scenario-row"><span class="k">🌟 Feat</span><span class="v feat">${calc.featDice.map(f=>'+'+f.dice+(f.damageType?' '+f.damageType:'')).join(' ')}</span></div>`;
       }
-    }else{rows=`<div class="scenario-row"><span class="k">Nenhuma arma ativa</span></div>`;}
+    }else{rows=`<div class="scenario-row"><span class="k">Nenhuma arma equipada</span></div>`;}
   }
   if(isRage())rows+=`<div class="scenario-row"><span class="k">🛡 Resist.</span><span class="v resist">Tudo exceto psíquico</span></div>`;
   const effLine=effectsActive.length?`<div class="scenario-effects">✓ ${effectsActive.map(esc).join(' • ')}${isRage()&&hasTotemBear()?' (🐾 totem)':''}</div>`:'';
@@ -995,10 +998,20 @@ export function renderWeapons(){
   return state.weapons.map(w=>{
     const normal=calcWeaponAttack(w,false);
     const crit=calcWeaponAttack(w,true);
-    const usageAction=w.isOffHand?'bonus':null;
-    return `<div class="atk-card ${w.active?'active':''}">
+    const offHand=w.equipState==='off'||w.isOffHand===true;
+    const equipped=w.equipState==='main'||offHand;
+    const twoHanded=isTwoHandedWeapon(w);
+    const usageAction=offHand?'bonus':null;
+    const tag=w.equipState==='main'?'<span class="atk-tag">Principal</span>':offHand?'<span class="atk-tag off">Inábil</span>':'';
+    return `<div class="atk-card ${equipped?'equipped':''}">
       <div class="atk-header">
-        <div class="atk-name" onclick="selectWeapon('${w.id}')">${esc(w.name)}${w.active?'<span class="atk-tag">Ativa</span>':''}</div>
+        <div class="atk-heading">
+          <div class="atk-name" onclick="selectWeapon('${w.id}')">${esc(w.name)}${tag}</div>
+          <div class="weapon-hand-controls">
+            <button class="hand-btn ${w.equipState==='main'?'equipped':''}" onclick="event.stopPropagation();equipWeapon('${w.id}','main')">Mão Principal</button>
+            ${twoHanded?'':`<button class="hand-btn off ${w.equipState==='off'?'equipped':''}" onclick="event.stopPropagation();equipWeapon('${w.id}','off')">Mão Inábil</button>`}
+          </div>
+        </div>
         <div class="atk-actions">
           <button class="btn-icon" onclick="event.stopPropagation();openWeaponModal('${w.id}')">✏️</button>
           <button class="btn-icon" onclick="event.stopPropagation();deleteWeapon('${w.id}')">🗑️</button>
@@ -1443,12 +1456,35 @@ export function toggleEffect(id){
 }
 export function toggleSave(k){state.saves[k]=!state.saves[k];renderAll();save();}
 export function toggleSkill(k){state.skills[k]=!state.skills[k];renderAll();save();}
-export function selectWeapon(id){
+export function equipWeapon(id, hand){
+  if(hand!=='main'&&hand!=='off')return;
   if(isWild())return showToast('Desative Forma Selvagem primeiro');
-  state.weapons.forEach(w=>w.active=w.id===id);
-  renderAll();save();
+  const w=state.weapons.find(x=>x.id===id);if(!w)return;
+  if(hand==='main'){
+    state.weapons.forEach(x=>{ if(x.id!==id&&x.equipState==='main')x.equipState='none'; });
+    if(isTwoHandedWeapon(w)){
+      state.weapons.forEach(x=>{ if(x.id!==id&&x.equipState==='off')x.equipState='none'; });
+    }
+    w.equipState='main';
+    save();renderAll();
+    showToast(`⚔️ ${w.name} equipada na Mão Principal`);
+    return;
+  }
+  if(!isLightWeapon(w)){
+    showToast('⚠️ Esta arma não pode ser usada na mão inábil (não é Leve).');
+    return;
+  }
+  state.weapons.forEach(x=>{
+    if(x.id===id)return;
+    if(x.equipState==='off')x.equipState='none';
+    if(x.equipState==='main'&&isTwoHandedWeapon(x))x.equipState='none';
+  });
+  w.equipState='off';
+  save();renderAll();
+  showToast(`🤝 ${w.name} equipada na Mão Inábil`);
 }
-export function toggleWeapon(id){selectWeapon(id);}
+export function selectWeapon(id){return equipWeapon(id,'main');}
+export function toggleWeapon(id){return equipWeapon(id,'main');}
 export function selectBeast(key){
   if(isWild()&&state.wildHp.current>0){
     if(!confirm(`Trocar para ${state.beasts[key].name}? Wild HP será resetado para ${state.beasts[key].hp}.`))return;
@@ -1669,9 +1705,13 @@ export function openWeaponModal(id){
     const newW={id:id||'w_'+Date.now(),name:data.name||'Arma',die:data.die||'1d6',
       magic:parseInt(data.magic)||0,flat:parseInt(data.flat)||0,extraDice:data.extraDice||'',
       extraType:data.extraType||'',attr:data.attr||'str',props:data.props||'',
-      active:id?w.active:state.weapons.length===0};
+      equipState:id?(w.equipState||'none'):(state.weapons.length===0?'main':'none')};
+    if(newW.equipState==='off'&&!isLightWeapon(newW))newW.equipState='none';
+    if(newW.equipState==='main'&&isTwoHandedWeapon(newW)){
+      state.weapons.forEach(x=>{ if(x.id!==newW.id&&x.equipState==='off')x.equipState='none'; });
+    }
     if(id){const i=state.weapons.findIndex(x=>x.id===id);state.weapons[i]=newW;}
-    else{if(newW.active)state.weapons.forEach(x=>x.active=false);state.weapons.push(newW);}
+    else state.weapons.push(newW);
     renderAll();save();showToast('✓ Arma salva');
   });
 }

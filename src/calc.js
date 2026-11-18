@@ -44,7 +44,8 @@ export function calcWeaponAttack(weapon, isCrit, state){
   const rageActive = !!(state.effects||[]).find(e=>e.id==='rage'&&e.active);
   const rageBonus = (rageActive && attrKey==='str') ? 2 : 0;
   const featDmgBonus = (state.feats||[]).reduce((s,f)=>s + ((f.combat&&f.combat.active)?(parseInt(f.combat.damageBonus)||0):0), 0);
-  const damageAttrMod = weapon.isOffHand ? 0 : attrMod;
+  const isOffHand = weapon.equipState === 'off' || weapon.isOffHand === true;
+  const damageAttrMod = isOffHand ? 0 : attrMod;
   const flatBonus = damageAttrMod + (parseInt(weapon.magic)||0) + (parseInt(weapon.flat)||0) + rageBonus + featDmgBonus;
   const parts = [];
   const diceParts = [];
