@@ -1,6 +1,6 @@
 import { state, saveState as save, emptyBeast, ATTR_NAMES, ATTR_FULL, SKILLS, exportState, importState, getActiveCharacter, getActiveId, getCharacters, switchCharacter as switchCharacterState, createCharacter as createCharacterState, deleteCharacter as deleteCharacterState } from './state.js';
 export { exportState, importState };
-import { getMod, getProf as getProfPure, parseDice, diceInfo, calcWeaponAttack as calcWeaponAttackPure, calcBeastAttack as calcBeastAttackPure, getAutoSlots as getAutoSlotsPure } from './calc.js';
+import { getMod, getProf as getProfPure, parseDice, diceInfo, calcWeaponAttack as calcWeaponAttackPure, calcBeastAttack as calcBeastAttackPure, applyRageResistance, getAutoSlots as getAutoSlotsPure } from './calc.js';
 import { fmtMod, esc } from './utils.js';
 import { logHistory, categoryFromTarget, updateFab, renderHistEntries } from './history.js';
 import { calcTapHTML, openNumpadDirect, closeNumpad, setNumpadHooks, calcValues, updateInlineResult } from './numpad.js';
@@ -143,14 +143,19 @@ export function calcBeastAttack(beast, atk, isCrit) {
   return calcBeastAttackPure(beast, atk, isCrit, isRage());
 }
 
-export function applyDamage(amount){
+export function applyDamage(amount, damageType = 'cortante'){
   if(amount<=0)return;
-  let logEntry={type:'damage',amount:-amount,target:'human',before:state.hp.current,after:0,tempAbsorvido:0};
+  const originalDamage=amount;
+  const isTotemBear=hasTotemBear();
+  const finalDamage=applyRageResistance(amount, damageType, isRage(), isTotemBear);
+  const resisted=finalDamage<amount;
+  const resistMsg=resisted?`🛡️ Resistência! Dano reduzido de ${originalDamage} para ${finalDamage}`:'';
+  let logEntry={type:'damage',amount:-finalDamage,originalDamage,finalDamage,damageType,resisted,target:'human',before:state.hp.current,after:0,tempAbsorvido:0};
   if(isWild()&&state.wildHp.current>0){
     logEntry.target='wild';logEntry.before=state.wildHp.current;
-    const absorbed=Math.min(state.wildHp.current,amount);
+    const absorbed=Math.min(state.wildHp.current,finalDamage);
     state.wildHp.current-=absorbed;
-    const overflow=amount-absorbed;
+    const overflow=finalDamage-absorbed;
     logEntry.after=state.wildHp.current;
     if(state.wildHp.current===0){
       const wn=state.beasts[state.activeBeast]?.name||'Fera';
@@ -167,23 +172,24 @@ export function applyDamage(amount){
         logEntry.overflowAfter=state.hp.current;
         showToast(`🐻 ${wn} caiu! ${overflow} passou pra forma humana`);
       }else showToast(`🐻 ${wn} caiu! Forma humana intacta`);
-    }else showToast(`🐻 −${amount} HP (wild: ${state.wildHp.current}/${state.wildHp.max})`);
+    }else showToast(`🐻 −${finalDamage} HP (wild: ${state.wildHp.current}/${state.wildHp.max})`);
   }else{
-    let rem=amount;
+    let rem=finalDamage;
     if(state.hp.temp>0){
       const t=Math.min(state.hp.temp,rem);
       state.hp.temp-=t;rem-=t;logEntry.tempAbsorvido=t;
     }
     state.hp.current=Math.max(0,state.hp.current-rem);
     logEntry.after=state.hp.current;
-    showToast(logEntry.tempAbsorvido>0?`👤 −${amount} HP (${logEntry.tempAbsorvido} temp)`: `👤 −${amount} HP`);
+    showToast(logEntry.tempAbsorvido>0?`👤 −${finalDamage} HP (${logEntry.tempAbsorvido} temp)`: `👤 −${finalDamage} HP`);
   }
   logHistory('hp',logEntry);
   if(navigator.vibrate)navigator.vibrate(60);
   renderAll();save();
-  if(state.concentration&&amount>0){
-    const dc=Math.max(10,Math.floor(amount/2));
-    showToast(`🧠 Dano! Teste de Concentração CD ${dc}`);
+  if(resistMsg)showToast(resistMsg);
+  if(state.concentration&&finalDamage>0){
+    const dc=Math.max(10,Math.floor(finalDamage/2));
+    showToast(resistMsg?`${resistMsg} • 🧠 Teste de Concentração CD ${dc}`:`🧠 Dano! Teste de Concentração CD ${dc}`);
     openNumpadDirect({
       target:null,mod:getAttrMod('con'),isD20:true,min:1,max:20,dieStr:'d20',
       label:`Concentração (CD ${dc})`,
@@ -219,8 +225,23 @@ export function openHPModal(){
     <div class="modal-sub">Tomar Dano</div>
     <div class="field-row">
       <div class="field"><label>Qtd</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" id="dmgAmount" value="0" min="0"></div>
-      <div><button type="button" class="btn-action danger" onclick="applyDamageModal()">Aplicar</button></div>
+      <div class="field"><label>Tipo</label><select id="dmgType" name="dmgType">
+        <option value="cortante" selected>Cortante</option>
+        <option value="perfurante">Perfurante</option>
+        <option value="impacto">Impacto</option>
+        <option value="fogo">Fogo</option>
+        <option value="gélido">Gélido</option>
+        <option value="ácido">Ácido</option>
+        <option value="elétrico">Elétrico</option>
+        <option value="trovejante">Trovejante</option>
+        <option value="venenoso">Venenoso</option>
+        <option value="psíquico">Psíquico</option>
+        <option value="radiante">Radiante</option>
+        <option value="necrótico">Necrótico</option>
+        <option value="força">Força</option>
+      </select></div>
     </div>
+    <button type="button" class="btn-action danger" style="width:100%;margin-bottom:4px" onclick="applyDamageModal()">Aplicar Dano</button>
     <div class="modal-sub">Curar</div>
     <div class="field-row">
       <div class="field"><label>Qtd</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" id="healAmount" value="0" min="0"></div>
@@ -256,7 +277,7 @@ export function openHPModal(){
   document.getElementById('modalFooter').innerHTML='<button class="btn-cancel" onclick="closeModal()">Fechar</button>';
   updateFab();
 }
-export function applyDamageModal(){const a=parseInt(document.getElementById('dmgAmount').value)||0;if(a>0){applyDamage(a);closeModal();}}
+export function applyDamageModal(){const a=parseInt(document.getElementById('dmgAmount').value)||0;const type=document.getElementById('dmgType')?.value||'cortante';if(a>0){applyDamage(a,type);closeModal();}}
 export function applyHealModal(){const a=parseInt(document.getElementById('healAmount').value)||0;if(a>0){applyHealing(a);closeModal();}}
 
 export function getACBreakdown(){

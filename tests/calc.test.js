@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getMod, getProf, parseDice, diceInfo, calcWeaponAttack, calcBeastAttack, getAutoSlots } from '../src/calc.js';
+import { getMod, getProf, parseDice, diceInfo, calcWeaponAttack, calcBeastAttack, applyRageResistance, getAutoSlots } from '../src/calc.js';
 
 describe('getMod', () => {
   it('handles standard scores', () => {
@@ -64,6 +64,28 @@ describe('calcWeaponAttack', () => {
     expect(rStr.flatBonus).toBe(7); // 3(str)+2(magic)+2(rage)
     expect(rDex.rageBonus).toBe(0);
     expect(rDex.flatBonus).toBe(3); // 1(dex)+2(magic)+0
+  });
+});
+
+describe('applyRageResistance', () => {
+  it('halves slashing damage during normal rage', () => {
+    expect(applyRageResistance(21, 'cortante', true, false)).toBe(10);
+  });
+
+  it('does not reduce fire damage during normal rage', () => {
+    expect(applyRageResistance(21, 'fogo', true, false)).toBe(21);
+  });
+
+  it('halves fire damage with Bear Totem rage', () => {
+    expect(applyRageResistance(21, 'fogo', true, true)).toBe(10);
+  });
+
+  it('does not reduce psychic damage with Bear Totem rage', () => {
+    expect(applyRageResistance(21, 'psíquico', true, true)).toBe(21);
+  });
+
+  it('does not reduce damage when not raging', () => {
+    expect(applyRageResistance(21, 'cortante', false, true)).toBe(21);
   });
 });
 

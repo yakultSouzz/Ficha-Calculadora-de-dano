@@ -83,6 +83,15 @@ export function calcWeaponAttack(weapon, isCrit, state){
   Object.keys(dm).map(Number).forEach(s => { minDmg += dm[s]; maxDmg += dm[s]*s; });
   return {toHit, damage, diceStr, flatBonus, rageBonus, featDice, featAtkBonus, featDmgBonus, minDmg, maxDmg, isCrit:!!isCrit};
 }
+export function applyRageResistance(amount, damageType, isRaging, isTotemBear){
+  if(!isRaging || amount <= 0) return amount;
+  const type = String(damageType || '').trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if(isTotemBear){
+    return type !== 'psiquico' ? Math.floor(amount / 2) : amount;
+  }
+  return ['cortante', 'perfurante', 'impacto'].includes(type) ? Math.floor(amount / 2) : amount;
+}
 export function calcBeastAttack(beast, atk, isCrit, isRage){
   const rageBonus = isRage ? 2 : 0;
   const dmgMod = getMod(beast?.attrs?.str || 10) + rageBonus;
@@ -110,5 +119,5 @@ export function getAutoSlots(classes){
   return result;
 }
 
-export const Calc = { getMod, getProf, parseDice, diceInfo, calcWeaponAttack, calcBeastAttack, getAutoSlots };
+export const Calc = { getMod, getProf, parseDice, diceInfo, calcWeaponAttack, calcBeastAttack, applyRageResistance, getAutoSlots };
 if (typeof globalThis !== 'undefined') globalThis.Calc = Calc;

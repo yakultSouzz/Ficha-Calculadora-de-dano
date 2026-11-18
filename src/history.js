@@ -48,6 +48,10 @@ export function renderHistEntries(cat){
       const targetIcon=e.target==='wild'?'🐻':'👤';
       const sign=e.amount>0?'+':'';
       let body=`${e.before} → ${e.after} <b>(${sign}${e.amount})</b>`;
+      const meta=[];
+      if(e.damageType)meta.push(esc(e.damageType));
+      if(e.resisted)meta.push(`🛡️ ${e.originalDamage} → ${e.finalDamage}`);
+      if(meta.length)body+=`<br><span style="opacity:0.7;font-size:11px">${meta.join(' • ')}</span>`;
       if(e.overflowBefore!==undefined){
         body+=`<br><span style="opacity:0.7;font-size:11px">↳ overflow 👤 ${e.overflowBefore} → ${e.overflowAfter}</span>`;
       }
