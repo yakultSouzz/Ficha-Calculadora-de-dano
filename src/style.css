@@ -772,6 +772,32 @@ body.theme-dark.mode-rest{--mode-accent:#a58ce0;--mode-wash:rgba(165,140,224,0.0
 .beast-attack-block{margin-bottom:6px;padding-bottom:6px;border-bottom:1px dotted var(--border-soft);}
 .beast-attack-block:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0;}
 .beast-atk-title{font-size:12px;color:var(--red);font-weight:700;margin-bottom:3px;}
+.beast-edit-btn{background:rgba(74,107,58,0.1);border:1px solid rgba(74,107,58,0.35);
+  color:var(--green);padding:4px 8px;border-radius:5px;font-size:10px;font-weight:800;
+  letter-spacing:0.3px;cursor:pointer;white-space:nowrap;line-height:1.2;}
+.beast-edit-btn:active{background:var(--green);color:var(--on-accent);}
+.beast-equip-badge{display:inline-block;font-size:9px;font-weight:800;letter-spacing:0.5px;
+  text-transform:uppercase;color:var(--green);background:rgba(74,107,58,0.15);
+  padding:1px 6px;border-radius:6px;}
+.wild-equipment{margin-top:10px;padding-top:8px;border-top:2px dashed var(--border-mid);}
+.wild-equipment-title{font-family:var(--serif);font-size:12px;font-weight:700;
+  color:var(--green);margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+.wild-items{display:flex;flex-direction:column;gap:5px;}
+.wild-item{background:var(--surface);border:1px solid var(--border-soft);
+  border-left:3px solid var(--green);border-radius:6px;padding:7px 10px;}
+.wild-item-name{font-family:var(--serif);font-size:12px;font-weight:700;color:var(--ink);}
+.wild-item-desc{font-size:10px;color:var(--ink-soft);font-style:italic;margin-top:2px;}
+.beast-edit-list{display:flex;flex-direction:column;gap:7px;}
+.beast-edit-row{background:var(--surface);border:1px solid var(--border-soft);
+  border-left:3px solid var(--green);border-radius:7px;padding:8px 10px;}
+.beast-edit-row-head{display:flex;justify-content:space-between;align-items:center;
+  font-family:var(--serif);font-size:11px;color:var(--green);margin-bottom:6px;}
+.beast-edit-row .btn-remove{font-size:10px;font-weight:800;letter-spacing:0.5px;
+  text-transform:uppercase;font-family:var(--sans);}
+.beast-edit-row .field{margin-bottom:7px;}
+.beast-edit-row .field label{font-size:9px;}
+.beast-edit-row .field input,.beast-edit-row .field textarea{font-size:13px;padding:7px 9px;}
+.beast-edit-row .field textarea{min-height:56px;}
 
 .feature-header{display:flex;justify-content:space-between;
   align-items:flex-start;gap:6px;margin-bottom:3px;flex-wrap:wrap;}

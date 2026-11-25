@@ -27,6 +27,9 @@ const getSpellAtk=()=>getProf()+getAttrMod(state.spellcasting.ability);
 const getPassivePerc=()=>10+getSkillTotal('percepcao');
 const isRage=()=>state.effects.find(e=>e.id==='rage')?.active;
 const isWild=()=>hasDruidLevels()&&!!state.effects.find(e=>e.id==='wild')?.active;
+const getActiveBeast=()=>state.beasts?.[state.activeBeast]||null;
+const canBeastUseEquipment=()=>!!getActiveBeast()?.canUseEquipment;
+const canUseWildEquipment=()=>isWild()&&canBeastUseEquipment();
 const normalizeWeaponProp=(v)=>String(v||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
 const isLightWeapon=(w)=>normalizeWeaponProp(w&&w.props).includes('leve');
 const isTwoHandedWeapon=(w)=>normalizeWeaponProp(w&&w.props).includes('duas maos');
@@ -139,7 +142,10 @@ export function calcSpellDamageStr(sp, isCrit){
 }
 
 export function calcWeaponAttack(w, isCrit) {
-  return calcWeaponAttackPure(w, isCrit, state);
+  const calcState=canUseWildEquipment()
+    ? {...state,attrs:{...state.attrs,...(getActiveBeast().attrs||{})}}
+    : state;
+  return calcWeaponAttackPure(w, isCrit, calcState);
 }
 
 export function calcBeastAttack(beast, atk, isCrit) {
@@ -453,7 +459,7 @@ export function updateSlotTotalDisplay(lvl){
 }
 
 export function getReminders(){return state.inventory.filter(it=>it.reminder&&(it.qty||0)>0);}
-export function isItemAvailable(it){if(!isWild())return true;return !!it.availableInWild;}
+export function isItemAvailable(it){if(!isWild())return true;return canBeastUseEquipment()&&!!it.availableInWild;}
 export function renderReminders(){
   const reminders=getReminders();
   if(!reminders.length)return '';
@@ -943,7 +949,9 @@ export function renderCombat(){
       ${renderCombatFeatToggles()}
       ${renderScenario()}
       ${isWild()?renderWildActions():''}
-      ${isWild()?renderActiveBeast():renderWeapons()}
+      ${isWild()
+        ? renderActiveBeast()+(canBeastUseEquipment()?renderWildEquipment():'')
+        : renderWeapons()}
     </div>
   </div>`;
 }
@@ -963,16 +971,23 @@ export function renderScenario(){
   if(isWild()){
     const b=state.beasts[state.activeBeast];
     if(b){
-      const mainAtk=b.attacks.reduce((a,c)=>{
-        const avg=(x)=>{const d=parseDice(x.die);return d?d.count*(d.sides+1)/2+x.mod:0;};
-        return avg(a)>=avg(c)?a:c;
-      },b.attacks[0]);
-      const calc=calcBeastAttack(b,mainAtk,false);
+      const atks=Array.isArray(b.attacks)?b.attacks:[];
+      let atkRows='';
+      if(atks.length){
+        const mainAtk=atks.reduce((a,c)=>{
+          const avg=(x)=>{const d=parseDice(x.die);return d?d.count*(d.sides+1)/2+x.mod:0;};
+          return avg(a)>=avg(c)?a:c;
+        },atks[0]);
+        const calc=calcBeastAttack(b,mainAtk,false);
+        atkRows=`
+          <div class="scenario-row"><span class="k">Ataque</span><span class="v">${esc(mainAtk.name)}</span></div>
+          <div class="scenario-row"><span class="k">Acerto</span><span class="v hot">${fmtMod(calc.toHit)}</span></div>
+          <div class="scenario-row"><span class="k">Dano</span><span class="v hot">${calc.damage}</span></div>`;
+      }
+      const multiRow=b.multiattack?`<div class="scenario-row"><span class="k">Ataque Múltiplo</span><span class="v">${esc(b.multiattack)}</span></div>`:'';
       rows=`
         <div class="scenario-row"><span class="k">Forma</span><span class="v">${esc(b.name)}</span></div>
-        <div class="scenario-row"><span class="k">Ataque</span><span class="v">${esc(mainAtk.name)}</span></div>
-        <div class="scenario-row"><span class="k">Acerto</span><span class="v hot">${fmtMod(calc.toHit)}</span></div>
-        <div class="scenario-row"><span class="k">Dano</span><span class="v hot">${calc.damage}</span></div>
+        ${atkRows}${multiRow}
         <div class="scenario-row"><span class="k">CA</span><span class="v wild">${ac.total} <small style="color:var(--ink-soft);font-size:10px">(${ac.source})</small></span></div>`;
     }
   }else{
@@ -1036,6 +1051,21 @@ export function renderWeapons(){
     </div>`;
   }).join('')+`<button class="btn-add" onclick="openWeaponModal()">+ Nova Arma</button>`;
 }
+export function renderWildEquipment(){
+  const items=state.inventory.filter(it=>it.availableInWild&&(it.qty||0)>0);
+  const itemsHTML=items.length
+    ? items.map(it=>`<div class="wild-item">
+        <div class="wild-item-name">${esc(it.name)} <span class="inv-qty">×${it.qty}</span></div>
+        ${it.desc?`<div class="wild-item-desc">${esc(it.desc)}</div>`:''}
+      </div>`).join('')
+    : '<div class="empty">Nenhum item marcado como disponível na forma.</div>';
+  return `<div class="wild-equipment">
+    <div class="wild-equipment-title">⚙️ Equipamento da Fera <span class="beast-equip-badge">permitido</span></div>
+    ${renderWeapons()}
+    <div class="sub-title">Itens utilizáveis na Forma</div>
+    <div class="wild-items">${itemsHTML}</div>
+  </div>`;
+}
 export function beastStatBlock(b){
   const attrGrid=Object.keys(ATTR_NAMES).map(k=>{
     const s=b.attrs[k]!==undefined?b.attrs[k]:10;
@@ -1076,12 +1106,13 @@ export function beastStatBlock(b){
   }).join('');
   return `<div class="beast-meta">
       <strong>CR ${esc(b.cr)}</strong> • CA ${b.ca} • HP ${b.hp} • Desloc. ${fmtSpeed(b)}
+      ${b.canUseEquipment?' • <span class="beast-equip-badge">⚙ usa equipamento</span>':''}
     </div>
     <div class="beast-abilities">${attrGrid}</div>
     ${skillList?`<div class="beast-info"><strong>Perícias:</strong> ${skillList}</div>`:''}
     ${b.senses?`<div class="beast-info"><strong>Sentidos:</strong> ${esc(b.senses)}</div>`:''}
     ${traitsHTML}
-    ${b.multiattack?`<div class="beast-info" style="color:var(--green)"><strong>Multiataque:</strong> ${esc(b.multiattack)}</div>`:''}
+    ${b.multiattack?`<div class="beast-info" style="color:var(--green)"><strong>Ataque Múltiplo:</strong> ${esc(b.multiattack)}</div>`:''}
     <div class="beast-attacks">${attacksHTML}</div>`;
 }
 export function renderActiveBeast(){
@@ -1336,10 +1367,10 @@ export function renderForms(){
     return `<div class="beast-card ${isActive?'active':''}">
       <div class="beast-header">
         <div class="beast-name" onclick="selectBeast('${key}')">${esc(b.name)}${isActive?'<span class="atk-tag">Ativa</span>':''}</div>
-        <div class="atk-actions">
-          <button class="btn-icon" onclick="openBeastModal('${key}')">✏️</button>
-          <button class="btn-icon" onclick="deleteBeast('${key}')">🗑️</button>
-        </div>
+      <div class="atk-actions">
+        <button class="beast-edit-btn" onclick="openBeastEdit('${key}')">✏️ Editar</button>
+        <button class="btn-icon" onclick="deleteBeast('${key}')">🗑️</button>
+      </div>
       </div>
       ${beastStatBlock(b)}
     </div>`;
@@ -1349,7 +1380,7 @@ export function renderForms(){
     <div class="panel-body">
       <p class="helper">Toque no nome para ativar.</p>
       ${cards||'<div class="empty">Nenhuma forma</div>'}
-      <button class="btn-add" onclick="openBeastModal()">+ Nova Forma</button>
+      <button class="btn-add" onclick="openBeastEdit()">+ Nova Forma</button>
     </div>
   </div>`;
 }
@@ -1458,7 +1489,7 @@ export function toggleSave(k){state.saves[k]=!state.saves[k];renderAll();save();
 export function toggleSkill(k){state.skills[k]=!state.skills[k];renderAll();save();}
 export function equipWeapon(id, hand){
   if(hand!=='main'&&hand!=='off')return;
-  if(isWild())return showToast('Desative Forma Selvagem primeiro');
+  if(isWild()&&!canBeastUseEquipment())return showToast('Desative Forma Selvagem primeiro');
   const w=state.weapons.find(x=>x.id===id);if(!w)return;
   if(hand==='main'){
     state.weapons.forEach(x=>{ if(x.id!==id&&x.equipState==='main')x.equipState='none'; });
@@ -1879,10 +1910,59 @@ export function openFeatModal(id){
 export function toggleFeatUsesFields(show){document.getElementById('featUsesFields2').style.display=show?'block':'none';}
 export function toggleFeatCombatFields(show){document.getElementById('featCombatFields').style.display=show?'block':'none';}
 
-export function openBeastModal(key){
-  const src=key?state.beasts[key]:emptyBeast();
+export let modalBeastAttacks=[];
+export let modalBeastTraits=[];
+
+export function renderModalBeastAttacks(){
+  const el=document.getElementById('modalBeastAttacks');if(!el)return;
+  el.innerHTML=modalBeastAttacks.map((a,i)=>`
+    <div class="beast-edit-row">
+      <div class="beast-edit-row-head"><strong>Ataque ${i+1}</strong>
+        <button type="button" class="btn-remove" onclick="modalRemoveBeastAttack(${i})">Remover</button></div>
+      <div class="field-row">
+        <div class="field"><label>Nome</label><input type="text" value="${esc(a.name||'')}" placeholder="Mordida" oninput="modalBeastAttacks[${i}].name=this.value"></div>
+        <div class="field"><label>Dado de Dano</label><input type="text" value="${esc(a.die||'')}" placeholder="1d8" oninput="modalBeastAttacks[${i}].die=this.value"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Modificador de Acerto</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" value="${a.mod||0}" oninput="modalBeastAttacks[${i}].mod=parseInt(this.value)||0"></div>
+        <div class="field"><label>Tipo de Dano</label><input type="text" value="${esc(a.type||'')}" placeholder="cortante" oninput="modalBeastAttacks[${i}].type=this.value"></div>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Alcance</label><input type="text" value="${esc(a.reach||'')}" oninput="modalBeastAttacks[${i}].reach=this.value"></div>
+        <div class="field"><label>Efeito Extra</label><input type="text" value="${esc(a.extra||'')}" oninput="modalBeastAttacks[${i}].extra=this.value"></div>
+      </div>
+    </div>`).join('')||'<div class="empty">Nenhum ataque cadastrado.</div>';
+}
+export function modalAddBeastAttack(){
+  modalBeastAttacks.push({name:'',die:'1d6',mod:0,type:'cortante',reach:'1,5m',extra:''});
+  renderModalBeastAttacks();
+}
+export function modalRemoveBeastAttack(i){modalBeastAttacks.splice(i,1);renderModalBeastAttacks();}
+
+export function renderModalBeastTraits(){
+  const el=document.getElementById('modalBeastTraits');if(!el)return;
+  el.innerHTML=modalBeastTraits.map((t,i)=>`
+    <div class="beast-edit-row">
+      <div class="beast-edit-row-head"><strong>Traço ${i+1}</strong>
+        <button type="button" class="btn-remove" onclick="modalRemoveBeastTrait(${i})">Remover</button></div>
+      <div class="field"><label>Nome</label><input type="text" value="${esc(t.name||'')}" placeholder="Olfato Aguçado" oninput="modalBeastTraits[${i}].name=this.value"></div>
+      <div class="field"><label>Descrição</label><textarea oninput="modalBeastTraits[${i}].desc=this.value">${esc(t.desc||'')}</textarea></div>
+    </div>`).join('')||'<div class="empty">Nenhum traço cadastrado.</div>';
+}
+export function modalAddBeastTrait(){
+  modalBeastTraits.push({name:'',desc:''});
+  renderModalBeastTraits();
+}
+export function modalRemoveBeastTrait(i){modalBeastTraits.splice(i,1);renderModalBeastTraits();}
+
+export function openBeastEdit(key){
+  const src=key&&state.beasts[key]?state.beasts[key]:emptyBeast();
   const b=JSON.parse(JSON.stringify(src));
-  const atk=b.attacks[0];
+  modalBeastAttacks.length=0;
+  (Array.isArray(b.attacks)?b.attacks:[]).forEach(a=>modalBeastAttacks.push({...a}));
+  modalBeastTraits.length=0;
+  (Array.isArray(b.traits)?b.traits:[]).forEach(t=>modalBeastTraits.push({...t}));
+  const attrs=b.attrs||emptyBeast().attrs;
   const html=`
     <div class="field"><label>Nome</label><input name="name" value="${esc(b.name)}"></div>
     <div class="field-row-3">
@@ -1890,65 +1970,86 @@ export function openBeastModal(key){
       <div class="field"><label>CA</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="ca" value="${b.ca||10}"></div>
       <div class="field"><label>HP</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="hp" value="${b.hp||10}"></div>
     </div>
-    <div class="modal-sub">Deslocamentos (m)</div>
+    <div class="modal-sub">Velocidades (m)</div>
     <div class="field-row-3">
-      <div class="field"><label>Terrestre</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="speedWalk" value="${b.speedWalk||0}" step="1.5"></div>
-      <div class="field"><label>Escalar</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="speedClimb" value="${b.speedClimb||0}" step="1.5"></div>
-      <div class="field"><label>Nadar</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="speedSwim" value="${b.speedSwim||0}" step="1.5"></div>
+      <div class="field"><label>Caminhada</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="speedWalk" value="${b.speedWalk||0}" step="1.5"></div>
+      <div class="field"><label>Escalada</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="speedClimb" value="${b.speedClimb||0}" step="1.5"></div>
+      <div class="field"><label>Natação</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="speedSwim" value="${b.speedSwim||0}" step="1.5"></div>
     </div>
-    <div class="field"><label>Voar</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="speedFly" value="${b.speedFly||0}" step="1.5"></div>
+    <div class="field"><label>Voo</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="speedFly" value="${b.speedFly||0}" step="1.5"></div>
     <div class="modal-sub">Atributos</div>
     <div class="field-row-3">
-      <div class="field"><label>FOR</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="bStr" value="${b.attrs.str}"></div>
-      <div class="field"><label>DES</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="bDex" value="${b.attrs.dex}"></div>
-      <div class="field"><label>CON</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="bCon" value="${b.attrs.con}"></div>
+      <div class="field"><label>FOR</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="bStr" value="${attrs.str}"></div>
+      <div class="field"><label>DES</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="bDex" value="${attrs.dex}"></div>
+      <div class="field"><label>CON</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="bCon" value="${attrs.con}"></div>
     </div>
     <div class="field-row-3">
-      <div class="field"><label>INT</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="bInt" value="${b.attrs.int}"></div>
-      <div class="field"><label>SAB</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="bWis" value="${b.attrs.wis}"></div>
-      <div class="field"><label>CAR</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="bCha" value="${b.attrs.cha}"></div>
+      <div class="field"><label>INT</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="bInt" value="${attrs.int}"></div>
+      <div class="field"><label>SAB</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="bWis" value="${attrs.wis}"></div>
+      <div class="field"><label>CAR</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="bCha" value="${attrs.cha}"></div>
     </div>
     <div class="modal-sub">Sentidos e Perícias</div>
     <div class="field"><label>Sentidos</label><input name="senses" value="${esc(b.senses||'')}"></div>
-    <div class="field"><label>Perícias (vírgula)</label><input name="skillsStr" value="${Object.keys(b.skills||{}).join(', ')}"></div>
-    <div class="modal-sub">Multiataque e Traços</div>
-    <div class="field"><label>Multiataque</label><input name="multiattack" value="${esc(b.multiattack||'')}"></div>
-    <div class="field"><label>Traços (Nome: descrição)</label>
-      <textarea name="traitsStr" style="min-height:80px">${esc((b.traits||[]).map(t=>`${t.name}: ${t.desc}`).join('\n'))}</textarea></div>
-    <div class="modal-sub">Ataque Principal</div>
-    <div class="field"><label>Nome</label><input name="atkName" value="${esc(atk.name||'Ataque')}"></div>
-    <div class="field-row-3">
-      <div class="field"><label>Dado</label><input name="atkDie" value="${esc(atk.die||'1d6')}"></div>
-      <div class="field"><label>Mod. Acerto</label><input type="number" readonly inputmode="none" onclick="window.openNumericNumpad(this)" name="atkMod" value="${atk.mod||0}"></div>
-      <div class="field"><label>Tipo</label><input name="atkType" value="${esc(atk.type||'cortante')}"></div>
-    </div>
-    <div class="field-row">
-      <div class="field"><label>Alcance</label><input name="atkReach" value="${esc(atk.reach||'1,5m')}"></div>
-      <div class="field"><label>Efeito Extra</label><input name="atkExtra" value="${esc(atk.extra||'')}"></div>
-    </div>`;
+    <div class="field"><label>Perícias (vírgula)</label><input name="skillsStr" value="${esc(Object.keys(b.skills||{}).join(', '))}"></div>
+    <div class="modal-sub">Equipamento</div>
+    <label class="checkbox-row">
+      <input type="checkbox" name="canUseEquipment" ${b.canUseEquipment?'checked':''}>
+      <span>Pode usar equipamento?</span>
+    </label>
+    <p class="helper">Permite usar armas e itens marcados como disponíveis na Forma Selvagem.</p>
+    <div class="modal-sub">Ataque Múltiplo</div>
+    <div class="field"><label>Ataque Múltiplo</label><input name="multiattack" value="${esc(b.multiattack||'')}" placeholder="Uma Mordida e uma Garras."></div>
+    <div class="modal-sub">Ataques</div>
+    <div class="beast-edit-list" id="modalBeastAttacks"></div>
+    <button type="button" class="btn-add" onclick="modalAddBeastAttack()">+ Adicionar Ataque</button>
+    <div class="modal-sub">Traços</div>
+    <div class="beast-edit-list" id="modalBeastTraits"></div>
+    <button type="button" class="btn-add" onclick="modalAddBeastTrait()">+ Adicionar Traço</button>`;
   openModal(key?'Editar Fera':'Nova Fera',html,data=>{
     const skillsObj={};
     (data.skillsStr||'').split(',').map(s=>s.trim().toLowerCase()).filter(k=>SKILLS[k]).forEach(k=>{skillsObj[k]='prof';});
-    const traitsArr=(data.traitsStr||'').split('\n').map(line=>{
-      const idx=line.indexOf(':');
-      if(idx<0)return{name:line.trim(),desc:''};
-      return{name:line.slice(0,idx).trim(),desc:line.slice(idx+1).trim()};
-    }).filter(t=>t.name);
-    const newB={name:data.name||'Fera',cr:data.cr||'1',ca:parseInt(data.ca)||10,hp:parseInt(data.hp)||10,
-      speedWalk:parseFloat(data.speedWalk)||0,speedClimb:parseFloat(data.speedClimb)||0,
-      speedSwim:parseFloat(data.speedSwim)||0,speedFly:parseFloat(data.speedFly)||0,
-      attrs:{str:parseInt(data.bStr)||10,dex:parseInt(data.bDex)||10,con:parseInt(data.bCon)||10,
+    const attacks=modalBeastAttacks.map(a=>({
+      name:String(a.name||'').trim()||'Ataque',
+      die:String(a.die||'').trim()||'1d6',
+      mod:parseInt(a.mod)||0,
+      type:String(a.type||'').trim()||'cortante',
+      reach:String(a.reach||'').trim()||'1,5m',
+      extra:String(a.extra||'').trim()
+    }));
+    const traits=modalBeastTraits.map(t=>({
+      name:String(t.name||'').trim(),
+      desc:String(t.desc||'').trim()
+    })).filter(t=>t.name);
+    const newB={
+      ...b,
+      name:String(data.name||'').trim()||'Fera',
+      cr:String(data.cr||'').trim()||'1',
+      ca:parseInt(data.ca)||10,
+      hp:parseInt(data.hp)||10,
+      speedWalk:parseFloat(data.speedWalk)||0,
+      speedClimb:parseFloat(data.speedClimb)||0,
+      speedSwim:parseFloat(data.speedSwim)||0,
+      speedFly:parseFloat(data.speedFly)||0,
+      attrs:{...attrs,
+        str:parseInt(data.bStr)||10,dex:parseInt(data.bDex)||10,con:parseInt(data.bCon)||10,
         int:parseInt(data.bInt)||10,wis:parseInt(data.bWis)||10,cha:parseInt(data.bCha)||10},
-      saves:b.saves||{},skills:skillsObj,senses:data.senses||'',traits:traitsArr,
-      multiattack:data.multiattack||'',
-      attacks:[{name:data.atkName||'Ataque',die:data.atkDie||'1d6',mod:parseInt(data.atkMod)||0,
-        type:data.atkType||'cortante',reach:data.atkReach||'1,5m',extra:data.atkExtra||''}]};
+      saves:b.saves||{},
+      skills:skillsObj,
+      senses:String(data.senses||''),
+      canUseEquipment:!!data.canUseEquipment,
+      multiattack:String(data.multiattack||'').trim(),
+      traits,
+      attacks:attacks.length?attacks:[{name:'Ataque',die:'1d6',mod:0,type:'cortante',reach:'1,5m',extra:''}]
+    };
     const newKey=key||'b_'+Date.now();
     state.beasts[newKey]=newB;
     if(!key)state.activeBeast=newKey;
     renderAll();save();showToast('✓ Fera salva');
   });
+  renderModalBeastAttacks();
+  renderModalBeastTraits();
 }
+export function openBeastModal(key){return openBeastEdit(key);}
 export function openInvModal(id){
   const it=id?state.inventory.find(x=>x.id===id):{name:'',qty:1,weight:0,desc:'',reminder:false,reminderNote:'',availableInWild:false};
   const html=`
@@ -2013,7 +2114,6 @@ export function openACModal(){return openCAModal();}
 export function openCharacterEdit(){return openCharModal();}
 export function openWeaponEdit(id){return openWeaponModal(id);}
 export function openSpellEdit(id){return openSpellModal(id);}
-export function openBeastEdit(key){showToast('em breve');}
 export function openItemEdit(id){return openInvModal(id);}
 export function addWeapon(){return openWeaponModal();}
 export function addSpell(){return openSpellModal();}

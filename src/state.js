@@ -15,6 +15,7 @@ export const SKILLS={
 };
 export const emptyBeast=()=>({name:'',cr:'1',ca:10,hp:20,speedWalk:12,speedClimb:0,speedSwim:0,speedFly:0,
   attrs:{str:10,dex:10,con:10,int:2,wis:10,cha:6},saves:{},skills:{},senses:'',traits:[],multiattack:'',
+  canUseEquipment:false,
   attacks:[{name:'Mordida',die:'1d6',mod:2,type:'perfurante',reach:'1,5m'}]});
 export const RAGE_DESC='+2 dano (FOR) • Resistência a TODOS os danos exceto psíquico (Totem do Urso)';
 
@@ -69,23 +70,27 @@ export const defaultState={
       attrs:{str:19,dex:10,con:16,int:2,wis:13,cha:7},saves:{},skills:{percepcao:'prof'},
       senses:'Visão no escuro 18m, Percepção passiva 13',
       traits:[{name:'Olfato Aguçado',desc:'Vantagem em Percepção baseada em olfato.'}],
+      canUseEquipment:false,
       attacks:[{name:'Mordida',die:'1d8',mod:5,type:'perfurante',reach:'1,5m'},{name:'Garras',die:'2d6',mod:5,type:'cortante',reach:'1,5m'}],
       multiattack:'Uma Mordida e uma Garras.'},
     direWolf:{name:'Lobo Gigante',cr:'1',ca:14,hp:37,speedWalk:15,speedClimb:0,speedSwim:0,speedFly:0,
       attrs:{str:17,dex:15,con:15,int:3,wis:12,cha:6},saves:{},skills:{percepcao:'prof',furtividade:'prof'},
       senses:'Percepção passiva 13',
       traits:[{name:'Audição/Olfato Aguçado',desc:'Vantagem em Percepção.'},{name:'Táticas de Matilha',desc:'Vantagem em ataque se aliado a 1,5m.'}],
+      canUseEquipment:false,
       attacks:[{name:'Mordida',die:'2d6',mod:5,type:'perfurante',reach:'1,5m',extra:'Teste de FOR CD 13 ou caído.'}]},
     blackBear:{name:'Urso Negro',cr:'1/2',ca:11,hp:19,speedWalk:12,speedClimb:9,speedSwim:0,speedFly:0,
       attrs:{str:15,dex:10,con:14,int:2,wis:12,cha:7},saves:{},skills:{percepcao:'prof'},
       senses:'Percepção passiva 13',
       traits:[{name:'Olfato Aguçado',desc:'Vantagem em Percepção baseada em olfato.'}],
+      canUseEquipment:false,
       attacks:[{name:'Mordida',die:'1d6',mod:3,type:'perfurante',reach:'1,5m'},{name:'Garras',die:'2d4',mod:3,type:'cortante',reach:'1,5m'}],
       multiattack:'Uma Mordida e uma Garras.'},
     tiger:{name:'Tigre',cr:'1',ca:12,hp:37,speedWalk:12,speedClimb:0,speedSwim:0,speedFly:0,
       attrs:{str:17,dex:15,con:14,int:3,wis:12,cha:8},saves:{},skills:{percepcao:'prof',furtividade:'prof'},
       senses:'Visão no escuro 18m, Percepção passiva 13',
       traits:[{name:'Olfato Aguçado',desc:'Vantagem em Percepção baseada em olfato.'},{name:'Bote',desc:'Se move 6m+ em linha reta e acerta com garras, bônus para morder.'}],
+      canUseEquipment:false,
       attacks:[{name:'Mordida',die:'1d10',mod:5,type:'perfurante',reach:'1,5m'},{name:'Garras',die:'1d8',mod:5,type:'cortante',reach:'1,5m'}]}
   },
   activeBeast:'brownBear',
@@ -282,11 +287,13 @@ export function migrate(savedState) {
     if (!b.skills) b.skills = {};
     if (b.senses === undefined) b.senses = '';
     if (!Array.isArray(b.traits)) b.traits = [];
+    if (b.multiattack === undefined) b.multiattack = '';
+    if (typeof b.canUseEquipment !== 'boolean') b.canUseEquipment = false;
     if (b.speedWalk === undefined) b.speedWalk = b.speed || tpl.speedWalk;
     if (b.speedClimb === undefined) b.speedClimb = 0;
     if (b.speedSwim === undefined) b.speedSwim = 0;
     if (b.speedFly === undefined) b.speedFly = 0;
-    if (!Array.isArray(b.attacks) || !b.attacks.length) b.attacks = tpl.attacks;
+    if (!Array.isArray(b.attacks) || !b.attacks.length) b.attacks = clone(tpl.attacks);
   });
 
   if (!Array.isArray(s.weapons)) s.weapons = clone(base.weapons);

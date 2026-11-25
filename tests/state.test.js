@@ -65,6 +65,36 @@ describe('multi-character state', () => {
     expect('isOffHand' in byId('w_axe_off')).toBe(false);
   });
 
+  it('starts all default beasts without equipment', () => {
+    const active = loadState();
+    expect(Object.keys(active.beasts).length).toBeGreaterThan(0);
+    expect(Object.values(active.beasts).every(b => b.canUseEquipment === false)).toBe(true);
+  });
+
+  it('migrates legacy beasts with equipment flag and structured lists', () => {
+    store[SAVE_KEY] = JSON.stringify({
+      version: 3,
+      activeBeast: 'oldBear',
+      beasts: {
+        oldBear: { name: 'Urso Antigo', ca: 11, hp: 30, traits: null, speedWalk: 12 },
+        oldWolf: { name: 'Lobo Antigo', canUseEquipment: true, attacks: [], traits: [{ name: 'Faro', desc: 'Vantagem.' }] }
+      }
+    });
+
+    const active = loadState();
+    const bear = active.beasts.oldBear;
+    const wolf = active.beasts.oldWolf;
+
+    expect(bear.canUseEquipment).toBe(false);
+    expect(Array.isArray(bear.attacks)).toBe(true);
+    expect(bear.attacks.length).toBeGreaterThan(0);
+    expect(bear.traits).toEqual([]);
+    expect(bear.multiattack).toBe('');
+    expect(wolf.canUseEquipment).toBe(true);
+    expect(wolf.attacks.length).toBeGreaterThan(0);
+    expect(wolf.traits).toEqual([{ name: 'Faro', desc: 'Vantagem.' }]);
+  });
+
   it('creates, switches and deletes characters', () => {
     loadState();
     const firstId = getActiveId();
